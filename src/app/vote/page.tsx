@@ -28,7 +28,11 @@ export default function VotePage() {
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
-  const loadElection = useCallback(async (hasVoted: boolean) => {
+  /**
+   * Cek status vote lebih dulu — bila belum dimulai/ditutup, tampilkan
+   * layar peringatan tanpa meminta nama pemilih.
+   */
+  const checkStatus = useCallback(async () => {
     const result = await api<PublicElectionDto>("/api/election");
     if (!result.ok) {
       setError(result.error);
@@ -44,31 +48,37 @@ export default function VotePage() {
         showResultsLink: false,
       });
       setPhase("blocked");
-    } else if (data.status === "CLOSED") {
+      return;
+    }
+    if (data.status === "CLOSED") {
       setBlocked({
         title: "Voting telah ditutup",
         message: "Periode pemungutan suara sudah berakhir. Terima kasih sudah berpartisipasi.",
         showResultsLink: data.showResultsToVoters,
       });
       setPhase("blocked");
-    } else if (hasVoted) {
-      setPhase("already");
+      return;
+    }
+    // OPEN — lanjut ke sesi pemilih.
+    const me = await api<VoterMeDto>("/api/voter/me");
+    if (me.ok && me.data.authenticated) {
+      if (me.data.hasVoted) {
+        setPhase("already");
+      } else {
+        setChoice("");
+        setShowSuggest(false);
+        setPhase("ballot");
+      }
     } else {
-      setChoice("");
-      setShowSuggest(false);
-      setPhase("ballot");
+      setPhase("code");
     }
   }, []);
 
   useEffect(() => {
-    api<VoterMeDto>("/api/voter/me").then((me) => {
-      if (me.ok && me.data.authenticated) {
-        loadElection(me.data.hasVoted === true);
-      } else {
-        setPhase("code");
-      }
-    });
-  }, [loadElection]);
+    // setState hanya dijalankan di dalam callback promise, bukan sinkron
+    // di body effect (aturan react-hooks/set-state-in-effect).
+    void Promise.resolve().then(checkStatus);
+  }, [checkStatus]);
 
   async function enterName(event: React.FormEvent) {
     event.preventDefault();
@@ -82,7 +92,7 @@ export default function VotePage() {
       setError(session.error);
       return;
     }
-    loadElection(session.data.hasVoted);
+    checkStatus();
   }
 
   async function submitVote() {
@@ -212,9 +222,7 @@ export default function VotePage() {
               <button
                 onClick={() => {
                   setPhase("checking");
-                  api<VoterMeDto>("/api/voter/me").then((me) =>
-                    loadElection(me.ok && me.data.authenticated && me.data.hasVoted === true),
-                  );
+                  checkStatus();
                 }}
                 className="min-h-12 rounded-xl border border-slate-300 bg-white px-5 py-3 font-medium text-slate-700 hover:bg-slate-50"
               >
