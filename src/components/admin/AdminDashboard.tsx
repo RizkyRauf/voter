@@ -7,7 +7,6 @@ import { Modal } from "@/components/Modal";
 import { StatusBadge } from "@/components/StatusBadge";
 import { api } from "@/lib/client-api";
 import type {
-  CandidateDto,
   ElectionAdminDto,
   ResultsDto,
   VotersDto,
@@ -16,7 +15,7 @@ import type {
 const POLL_MS = 3000;
 
 interface ConfirmState {
-  kind: "stop" | "reset" | "delete-candidate" | "delete-voter";
+  kind: "stop" | "reset" | "delete-voter";
   id?: string;
   name?: string;
 }
@@ -26,7 +25,6 @@ export function AdminDashboard() {
   const [ready, setReady] = useState(false);
   const [username, setUsername] = useState("");
   const [election, setElection] = useState<ElectionAdminDto | null>(null);
-  const [candidates, setCandidates] = useState<CandidateDto[]>([]);
   const [results, setResults] = useState<ResultsDto | null>(null);
   const [voters, setVoters] = useState<VotersDto | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -34,23 +32,13 @@ export function AdminDashboard() {
   const [confirm, setConfirm] = useState<ConfirmState | null>(null);
   const [busy, setBusy] = useState(false);
 
-  const [newName, setNewName] = useState("");
-  const [newDescription, setNewDescription] = useState("");
-  const [newPhotoUrl, setNewPhotoUrl] = useState("");
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [editName, setEditName] = useState("");
-  const [editDescription, setEditDescription] = useState("");
-  const [editPhotoUrl, setEditPhotoUrl] = useState("");
-
   const refresh = useCallback(async () => {
-    const [electionRes, candidatesRes, resultsRes, votersRes] = await Promise.all([
+    const [electionRes, resultsRes, votersRes] = await Promise.all([
       api<ElectionAdminDto>("/api/election"),
-      api<CandidateDto[]>("/api/candidates"),
       api<ResultsDto>("/api/results"),
       api<VotersDto>("/api/voters"),
     ]);
     if (electionRes.ok) setElection(electionRes.data);
-    if (candidatesRes.ok) setCandidates(candidatesRes.data);
     if (resultsRes.ok) setResults(resultsRes.data);
     if (votersRes.ok) setVoters(votersRes.data);
     if (!electionRes.ok && electionRes.status === 401) {
@@ -94,48 +82,6 @@ export function AdminDashboard() {
     router.replace("/admin/login");
   }
 
-  async function addCandidate(event: React.FormEvent) {
-    event.preventDefault();
-    setBusy(true);
-    setError(null);
-    const result = await api("/api/candidates", {
-      json: {
-        name: newName,
-        description: newDescription || undefined,
-        photoUrl: newPhotoUrl || undefined,
-      },
-    });
-    setBusy(false);
-    if (!result.ok) {
-      setError(result.error);
-      return;
-    }
-    setNewName("");
-    setNewDescription("");
-    setNewPhotoUrl("");
-    refresh();
-  }
-
-  async function saveEdit(id: string) {
-    setBusy(true);
-    setError(null);
-    const result = await api(`/api/candidates/${id}`, {
-      method: "PATCH",
-      json: {
-        name: editName,
-        description: editDescription,
-        photoUrl: editPhotoUrl,
-      },
-    });
-    setBusy(false);
-    if (!result.ok) {
-      setError(result.error);
-      return;
-    }
-    setEditingId(null);
-    refresh();
-  }
-
   async function runConfirm(state: ConfirmState) {
     setBusy(true);
     setError(null);
@@ -146,9 +92,9 @@ export function AdminDashboard() {
       if (result.ok) setInfo("Voting telah dihentikan. Hasil akhir ditampilkan.");
     } else if (state.kind === "reset") {
       result = await api("/api/reset", { method: "POST" });
-      if (result.ok) setInfo("Sesi baru dimulai. Daftar nama pemilih dan peserta tetap tersedia.");
-    } else if (state.kind === "delete-candidate") {
-      result = await api(`/api/candidates/${state.id}`, { method: "DELETE" });
+      if (result.ok) {
+        setInfo("Sesi baru dimulai. Suara, pilihan, dan daftar nama pemilih dihapus.");
+      }
     } else {
       result = await api(`/api/voters/${state.id}`, { method: "DELETE" });
     }
@@ -243,20 +189,13 @@ export function AdminDashboard() {
         </div>
         <div className="mt-4 flex flex-wrap gap-3">
           {election.status === "DRAFT" ? (
-            <>
-              <button
-                onClick={startVoting}
-                disabled={busy || candidates.length < 2}
-                className="min-h-11 rounded-xl bg-emerald-600 px-5 py-3 font-semibold text-white hover:bg-emerald-500 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                Mulai Vote
-              </button>
-              {candidates.length < 2 ? (
-                <span className="self-center text-sm text-slate-500">
-                  Minimal 2 peserta untuk memulai.
-                </span>
-              ) : null}
-            </>
+            <button
+              onClick={startVoting}
+              disabled={busy}
+              className="min-h-11 rounded-xl bg-emerald-600 px-5 py-3 font-semibold text-white hover:bg-emerald-500 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Mulai Vote
+            </button>
           ) : null}
           {election.status === "OPEN" ? (
             <button
@@ -356,163 +295,12 @@ export function AdminDashboard() {
       </section>
 
       <section className="mt-6 rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
-        <h2 className="text-lg font-semibold">Peserta</h2>
-
-        {election.status === "DRAFT" ? (
-          <form onSubmit={addCandidate} className="mt-4 flex flex-col gap-3">
-            <div>
-              <label htmlFor="cand-name" className="block text-sm font-medium text-slate-700">
-                Nama peserta
-              </label>
-              <input
-                id="cand-name"
-                required
-                value={newName}
-                onChange={(event) => setNewName(event.target.value)}
-                className="mt-1 min-h-11 w-full rounded-lg border border-slate-300 px-3 py-2 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200"
-              />
-            </div>
-            <div>
-              <label htmlFor="cand-desc" className="block text-sm font-medium text-slate-700">
-                Deskripsi (opsional)
-              </label>
-              <textarea
-                id="cand-desc"
-                value={newDescription}
-                onChange={(event) => setNewDescription(event.target.value)}
-                rows={2}
-                className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200"
-              />
-            </div>
-            <div>
-              <label htmlFor="cand-photo" className="block text-sm font-medium text-slate-700">
-                URL foto (opsional)
-              </label>
-              <input
-                id="cand-photo"
-                value={newPhotoUrl}
-                onChange={(event) => setNewPhotoUrl(event.target.value)}
-                placeholder="https://…"
-                className="mt-1 min-h-11 w-full rounded-lg border border-slate-300 px-3 py-2 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200"
-              />
-            </div>
-            <button
-              type="submit"
-              disabled={busy}
-              className="min-h-11 rounded-xl bg-indigo-600 px-5 py-3 font-semibold text-white hover:bg-indigo-500 disabled:opacity-50"
-            >
-              Tambah Peserta
-            </button>
-          </form>
-        ) : (
-          <p className="mt-2 text-sm text-slate-500">
-            Peserta tidak dapat diubah selama voting berlangsung.
-          </p>
-        )}
-
-        <ul className="mt-5 divide-y divide-slate-100">
-          {candidates.length === 0 ? (
-            <li className="py-3 text-sm text-slate-500">Belum ada peserta.</li>
-          ) : null}
-          {candidates.map((candidate) => (
-            <li key={candidate.id} className="py-3">
-              {editingId === candidate.id ? (
-                <div className="flex flex-col gap-2">
-                  <input
-                    aria-label="Nama peserta"
-                    value={editName}
-                    onChange={(event) => setEditName(event.target.value)}
-                    className="min-h-11 w-full rounded-lg border border-slate-300 px-3 py-2"
-                  />
-                  <input
-                    aria-label="Deskripsi peserta"
-                    value={editDescription}
-                    onChange={(event) => setEditDescription(event.target.value)}
-                    className="min-h-11 w-full rounded-lg border border-slate-300 px-3 py-2"
-                  />
-                  <input
-                    aria-label="URL foto peserta"
-                    value={editPhotoUrl}
-                    onChange={(event) => setEditPhotoUrl(event.target.value)}
-                    className="min-h-11 w-full rounded-lg border border-slate-300 px-3 py-2"
-                  />
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => saveEdit(candidate.id)}
-                      disabled={busy}
-                      className="min-h-11 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
-                    >
-                      Simpan
-                    </button>
-                    <button
-                      onClick={() => setEditingId(null)}
-                      className="min-h-11 rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700"
-                    >
-                      Batal
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <div className="flex items-start justify-between gap-3">
-                  <div className="flex items-start gap-3">
-                    {candidate.photoUrl ? (
-                      <img
-                        src={candidate.photoUrl}
-                        alt=""
-                        className="h-12 w-12 rounded-full object-cover"
-                      />
-                    ) : (
-                      <span className="flex h-12 w-12 items-center justify-center rounded-full bg-slate-100 text-lg font-semibold text-slate-500">
-                        {candidate.name.charAt(0).toUpperCase()}
-                      </span>
-                    )}
-                    <div>
-                      <p className="font-medium text-slate-900">{candidate.name}</p>
-                      {candidate.description ? (
-                        <p className="text-sm text-slate-600">{candidate.description}</p>
-                      ) : null}
-                    </div>
-                  </div>
-                  {election.status === "DRAFT" ? (
-                    <div className="flex shrink-0 gap-2">
-                      <button
-                        onClick={() => {
-                          setEditingId(candidate.id);
-                          setEditName(candidate.name);
-                          setEditDescription(candidate.description ?? "");
-                          setEditPhotoUrl(candidate.photoUrl ?? "");
-                        }}
-                        className="min-h-11 rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
-                      >
-                        Edit
-                      </button>
-                      <button
-                        onClick={() =>
-                          setConfirm({
-                            kind: "delete-candidate",
-                            id: candidate.id,
-                            name: candidate.name,
-                          })
-                        }
-                        className="min-h-11 rounded-lg border border-red-200 px-3 py-2 text-sm font-medium text-red-700 hover:bg-red-50"
-                      >
-                        Hapus
-                      </button>
-                    </div>
-                  ) : null}
-                </div>
-              )}
-            </li>
-          ))}
-        </ul>
-      </section>
-
-      <section className="mt-6 rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
         <h2 className="text-lg font-semibold">Pemilih</h2>
         <p className="mt-1 text-sm text-slate-500">
           Pemilih mendaftarkan diri dengan nama saat membuka halaman voting.
-          Suara tetap bersifat anonim — di sini hanya terlihat siapa yang sudah
-          memilih. Hapus nama yang tidak wajar; suaranya ikut dihapus dari total.
+          Kolom pilihan menunjukkan siapa memilih siapa (hanya terlihat oleh
+          admin di sini — hasil publik tetap berupa agregat per suara).
+          Hapus nama yang tidak wajar; suaranya ikut dihapus dari total.
         </p>
 
         <ul className="mt-5 divide-y divide-slate-100 md:hidden">
@@ -523,7 +311,7 @@ export function AdminDashboard() {
                   <p className="font-semibold text-slate-900">{voter.name}</p>
                   <p className="text-xs text-slate-500">
                     {voter.hasVoted
-                      ? `Sudah memilih${voter.votedAt ? ` · ${new Date(voter.votedAt).toLocaleString("id-ID")}` : ""}`
+                      ? `Memilih: ${voter.choice ?? "—"}${voter.votedAt ? ` · ${new Date(voter.votedAt).toLocaleString("id-ID")}` : ""}`
                       : "Belum memilih"}
                   </p>
                 </div>
@@ -546,6 +334,7 @@ export function AdminDashboard() {
             <tr>
               <th className="py-2 font-medium">Nama</th>
               <th className="py-2 font-medium">Status</th>
+              <th className="py-2 font-medium">Pilihan</th>
               <th className="py-2 font-medium">Waktu memilih</th>
               <th className="py-2 font-medium"></th>
             </tr>
@@ -565,6 +354,7 @@ export function AdminDashboard() {
                     </span>
                   )}
                 </td>
+                <td className="py-2 text-slate-700">{voter.choice ?? "—"}</td>
                 <td className="py-2 text-slate-600">
                   {voter.votedAt
                     ? new Date(voter.votedAt).toLocaleString("id-ID")
@@ -582,7 +372,7 @@ export function AdminDashboard() {
             ))}
             {!voters?.voters.length ? (
               <tr>
-                <td colSpan={4} className="py-3 text-slate-500">
+                <td colSpan={5} className="py-3 text-slate-500">
                   Belum ada pemilih terdaftar.
                 </td>
               </tr>
@@ -629,9 +419,9 @@ export function AdminDashboard() {
         onClose={() => setConfirm(null)}
       >
         <p>
-          Semua suara dan daftar nama pemilih akan dihapus, dan voting kembali
-          ke status draft. Daftar peserta tetap tersedia; sesi baru dimulai
-          dengan mendaftarkan nama pemilih (nama lama boleh dipakai ulang).
+          Semua suara, pilihan peserta, dan daftar nama pemilih akan dihapus,
+          dan voting kembali ke status draft. Pilihan baru diketik pemilih saat
+          sesi berikutnya (nama lama boleh dipakai ulang).
         </p>
         <div className="mt-5 flex flex-wrap gap-3">
           <button
@@ -640,31 +430,6 @@ export function AdminDashboard() {
             className="min-h-11 rounded-xl bg-indigo-600 px-5 py-3 font-semibold text-white disabled:opacity-50"
           >
             Ya, reset
-          </button>
-          <button
-            onClick={() => setConfirm(null)}
-            className="min-h-11 rounded-xl border border-slate-300 px-5 py-3 font-semibold text-slate-700"
-          >
-            Batal
-          </button>
-        </div>
-      </Modal>
-
-      <Modal
-        open={confirm?.kind === "delete-candidate"}
-        title="Hapus peserta?"
-        onClose={() => setConfirm(null)}
-      >
-        <p>
-          Peserta <strong>{confirm?.name}</strong> akan dihapus permanen.
-        </p>
-        <div className="mt-5 flex flex-wrap gap-3">
-          <button
-            onClick={() => confirm && runConfirm(confirm)}
-            disabled={busy}
-            className="min-h-11 rounded-xl bg-red-600 px-5 py-3 font-semibold text-white disabled:opacity-50"
-          >
-            Ya, hapus
           </button>
           <button
             onClick={() => setConfirm(null)}

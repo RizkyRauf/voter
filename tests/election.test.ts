@@ -7,7 +7,7 @@ interface PublicElection {
   showResultsToVoters: boolean;
   startedAt: string | null;
   closedAt: string | null;
-  candidates: { id: string; name: string; description: string | null; photoUrl: string | null }[];
+  candidates: { id: string; name: string }[];
 }
 
 describe("GET /api/election (public)", () => {

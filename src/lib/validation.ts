@@ -49,3 +49,20 @@ export function validateVoterName(
   }
   return { name, nameKey: nameKey(name) };
 }
+
+/**
+ * Validate a free-text candidate name typed by a voter (Amd.4).
+ * Returns the display form and the normalized dedup key, or an error.
+ */
+export function validateCandidateName(
+  value: unknown,
+): { name: string; nameKey: string } | NextResponse {
+  if (typeof value !== "string" || value.trim() === "") {
+    return jsonError(400, "Nama peserta wajib diisi");
+  }
+  const name = value.trim().replace(/\s+/g, " ");
+  if (name.length > MAX_NAME_LENGTH) {
+    return jsonError(400, `Nama peserta terlalu panjang (maks. ${MAX_NAME_LENGTH} karakter)`);
+  }
+  return { name, nameKey: nameKey(name) };
+}

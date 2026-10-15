@@ -283,3 +283,32 @@ diimplementasikan:
 - **OQ 6:** peserta boleh punya **foto & deskripsi** (opsional).
 - **OQ 7:** Stop Vote **final** (satu arah; `DRAFT → OPEN → CLOSED`). Untuk
   sesi berikutnya admin memakai "Reset Sesi Baru".
+
+### Amd. 4 — Kandidat bebas-teks (mengganti alur "siapkan peserta", sebagian Amd. 1 & Amd. 3)
+
+Konteks: seperti Google Form dengan jadwal mulai/akhir, tetapi daftar peserta
+dapat sangat panjang (~50) sehingga input manual 1-per-1 oleh admin tidak
+efektif. Keputusan user: pemilih **mengetik sendiri nama peserta** pilihannya.
+
+- **Alur baru pemilih:** daftar dengan nama (Amd. 1 tetap) → pada surat suara,
+  **ketik nama peserta** secara bebas, dengan **typeahead** berisi saran nama
+  yang sudah pernah diketik pemilih lain (hanya nama, **tanpa jumlah suara**
+  agar hasil live tidak bocor selama `OPEN`) → kirim suara.
+- **Kandidat tercipta otomatis** di DB saat suara masuk. Normalisasi
+  `name_key` (trim, spasi rapat, huruf besar/kecil diabaikan) menyatukan
+  varian ejaan: "Anis Malik", " anis   MALIK " → satu kandidat, suara
+  diakumulasi (2 suara).
+- **Dihapus:** CRUD peserta oleh admin (`/api/candidates`), kolom foto &
+  deskripsi, dan syarat **minimal 2 peserta** untuk memulai voting. "Mulai
+  Vote" bisa langsung diklik saat `DRAFT`.
+- **Anonimitas direvisi (OQ 4 / bagian Amd. 1 diganti):** admin **dapat
+  melihat pilihan setiap pemilih** lewat kolom `Pilihan` pada tabel pemilih.
+  Tampilan **publik tetap agregat saja** (tanpa identitas pemilih) — aturan
+  hasil di bagian 7.4 tidak berubah.
+- **OQ 6 diganti:** peserta **cukup nama teks**, tanpa foto/deskripsi.
+- **Reset sesi baru (Amd. 2 disesuaikan):** selain suara & nama pemilih,
+  **daftar kandidat ikut dihapus** — kandidat berasal dari suara sesi lalu,
+  jadi sesi baru harus mulai bersih agar typeahead tidak membawa nama lama.
+- Tabel hasil (tally nama → jumlah suara), CSV export, top-5 publik, dan
+  semua aturan 1-nama-1-suara tetap berlaku — nama kandidat hanyalah entitas
+  yang dituju suara.

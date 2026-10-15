@@ -34,8 +34,8 @@ describe("origin check on state-changing requests", () => {
     const admin = await adminClient();
     const res = await admin.request(
       "POST",
-      "/api/candidates",
-      { name: "Sia-Sia" },
+      "/api/election/stop",
+      { confirm: true },
       { origin: "https://evil.example" },
     );
     expect(res.status).toBe(403);

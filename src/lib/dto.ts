@@ -3,8 +3,6 @@ export type ElectionStatus = "DRAFT" | "OPEN" | "CLOSED";
 export interface CandidateDto {
   id: string;
   name: string;
-  description: string | null;
-  photoUrl: string | null;
 }
 
 export interface PublicElectionDto {
@@ -44,6 +42,8 @@ export interface VoterDto {
   id: string;
   name: string;
   hasVoted: boolean;
+  /** Nama peserta yang dipilih pemilih ini; null bila belum memilih. */
+  choice: string | null;
   votedAt: string | null;
   createdAt: string;
 }

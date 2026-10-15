@@ -13,8 +13,6 @@ export interface PublicElection {
   candidates: {
     id: string;
     name: string;
-    description: string | null;
-    photoUrl: string | null;
   }[];
 }
 
@@ -31,8 +29,6 @@ export async function GET() {
     candidates: candidates.map((c) => ({
       id: c.id,
       name: c.name,
-      description: c.description,
-      photoUrl: c.photoUrl,
     })),
   };
   return Response.json(body);

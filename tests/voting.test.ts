@@ -1,23 +1,16 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { BASE_URL, TestClient, adminClient, resetState, uniqueName } from "./helpers";
+import { BASE_URL, TestClient, adminClient, resetState } from "./helpers";
 
 interface VoterInfo {
   id: string;
   name: string;
   hasVoted: boolean;
+  choice: string | null;
   votedAt: string | null;
 }
 
-async function openElectionWithCandidates(admin: TestClient): Promise<string[]> {
-  const ids: string[] = [];
-  for (const label of ["A", "B"]) {
-    const res = await admin.post("/api/candidates", { name: uniqueName(`Kandidat ${label}`) });
-    expect(res.status).toBe(201);
-    ids.push((res.data as { id: string }).id);
-  }
-  const start = await admin.post("/api/election/start");
-  expect(start.status).toBe(200);
-  return ids;
+async function openElection(admin: TestClient): Promise<void> {
+  expect((await admin.post("/api/election/start")).status).toBe(200);
 }
 
 async function register(name: string): Promise<TestClient> {
@@ -25,6 +18,10 @@ async function register(name: string): Promise<TestClient> {
   const res = await client.post("/api/voter/session", { name });
   expect(res.status).toBe(200);
   return client;
+}
+
+function vote(client: TestClient, candidateName: string) {
+  return client.post("/api/votes", { candidateName });
 }
 
 describe("voter registration by name", () => {
@@ -68,10 +65,10 @@ describe("voter registration by name", () => {
     }
   });
 
-  it("lists voters with names for admin only, without exposing choices", async () => {
-    const ids = await openElectionWithCandidates(admin);
+  it("lists voters with names and choices for admin only (Amd.4)", async () => {
+    await openElection(admin);
     const client = await register("Siti");
-    await client.post("/api/votes", { candidateId: ids[0] });
+    expect((await vote(client, "Anis Malik")).status).toBe(201);
 
     const list = await admin.get("/api/voters");
     expect(list.status).toBe(200);
@@ -80,6 +77,7 @@ describe("voter registration by name", () => {
     expect(body.votedCount).toBe(1);
     expect(body.voters[0]?.name).toBe("Siti");
     expect(body.voters[0]?.hasVoted).toBe(true);
+    expect(body.voters[0]?.choice).toBe("Anis Malik");
     expect(typeof body.voters[0]?.votedAt).toBe("string");
 
     const denied = await new TestClient().get("/api/voters");
@@ -87,30 +85,27 @@ describe("voter registration by name", () => {
   });
 });
 
-describe("casting a vote (1 nama = 1 suara)", () => {
+describe("casting a vote (teks bebas + typeahead, Amd.4)", () => {
   let admin: TestClient;
-  let candidateIds: string[];
 
   beforeEach(async () => {
     await resetState();
     admin = await adminClient();
-    candidateIds = await openElectionWithCandidates(admin);
+    await openElection(admin);
   });
 
   it("requires a voter session", async () => {
     const anon = new TestClient();
-    const res = await anon.post("/api/votes", { candidateId: candidateIds[0] });
+    const res = await anon.post("/api/votes", { candidateName: "Anis" });
     expect(res.status).toBe(401);
   });
 
   it("rejects votes while the election is still DRAFT", async () => {
     await resetState();
     admin = await adminClient();
-    await admin.post("/api/candidates", { name: uniqueName("A") });
-    await admin.post("/api/candidates", { name: uniqueName("B") });
     const client = await register("Andi");
 
-    const res = await client.post("/api/votes", { candidateId: "any" });
+    const res = await vote(client, "Anis Malik");
     expect(res.status).toBe(403);
     expect((res.data as { error: string }).error).toMatch(/belum dimulai/i);
   });
@@ -118,21 +113,46 @@ describe("casting a vote (1 nama = 1 suara)", () => {
   it("accepts a vote while OPEN and marks the voter as having voted", async () => {
     const client = await register("Andi");
 
-    const res = await client.post("/api/votes", { candidateId: candidateIds[0] });
+    const res = await vote(client, "Anis Malik");
     expect(res.status).toBe(201);
 
     const me = await client.get("/api/voter/me");
     expect(me.data).toEqual({ authenticated: true, hasVoted: true });
   });
 
+  it("rejects an empty or whitespace-only candidate name", async () => {
+    const client = await register("Andi");
+    for (const candidateName of ["", "   "]) {
+      const res = await client.post("/api/votes", { candidateName });
+      expect(res.status).toBe(400);
+      expect((res.data as { error: string }).error).toMatch(/nama peserta/i);
+    }
+  });
+
+  it("maps case/whitespace variants of a candidate name to one candidate", async () => {
+    const first = await register("Pemilih 1");
+    expect((await vote(first, "Anis Malik")).status).toBe(201);
+    const second = await register("Pemilih 2");
+    expect((await vote(second, "  anis   MALIK ")).status).toBe(201);
+
+    const results = (await admin.get("/api/results")).data as {
+      totalVotes: number;
+      results: { name: string; votes: number }[];
+    };
+    expect(results.totalVotes).toBe(2);
+    expect(results.results).toHaveLength(1);
+    expect(results.results[0]?.name).toBe("Anis Malik");
+    expect(results.results[0]?.votes).toBe(2);
+  });
+
   it("rejects a second vote from the same name (any casing/spacing)", async () => {
     const client = await register("Andi");
-    const first = await client.post("/api/votes", { candidateId: candidateIds[0] });
+    const first = await vote(client, "Anis Malik");
     expect(first.status).toBe(201);
 
     // A fresh request with a variant of the same name reuses the same voter.
     const again = await register("  andi ");
-    const second = await again.post("/api/votes", { candidateId: candidateIds[1] });
+    const second = await vote(again, "Budi");
     expect(second.status).toBe(409);
     expect((second.data as { error: string }).error).toMatch(/sudah/i);
   });
@@ -141,50 +161,46 @@ describe("casting a vote (1 nama = 1 suara)", () => {
     const client = await register("Andi");
 
     const [a, b] = await Promise.all([
-      client.post("/api/votes", { candidateId: candidateIds[0] }),
-      client.post("/api/votes", { candidateId: candidateIds[1] }),
+      vote(client, "Anis Malik"),
+      vote(client, "Budi Santoso"),
     ]);
     const statuses = [a.status, b.status].sort();
     expect(statuses).toEqual([201, 409]);
   });
 
-  it("rejects a vote for an unknown candidate", async () => {
-    const client = await register("Andi");
-    const res = await client.post("/api/votes", { candidateId: "tidak-ada" });
-    expect(res.status).toBe(404);
-  });
-
   it("lets a second voter vote for a different candidate", async () => {
     const first = await register("Andi");
     const second = await register("Siti");
-    expect((await first.post("/api/votes", { candidateId: candidateIds[0] })).status).toBe(201);
-    expect((await second.post("/api/votes", { candidateId: candidateIds[1] })).status).toBe(201);
+    expect((await vote(first, "Anis Malik")).status).toBe(201);
+    expect((await vote(second, "Budi Santoso")).status).toBe(201);
   });
 
   it("rejects votes once the election is CLOSED", async () => {
     const client = await register("Andi");
     await admin.post("/api/election/stop", { confirm: true });
 
-    const res = await client.post("/api/votes", { candidateId: candidateIds[0] });
+    const res = await vote(client, "Anis Malik");
     expect(res.status).toBe(403);
     expect((res.data as { error: string }).error).toMatch(/ditutup/i);
   });
 
-  it("keeps the candidate list publicly visible while OPEN", async () => {
+  it("publishes typed names publicly as typeahead suggestions while OPEN", async () => {
+    const client = await register("Andi");
+    await vote(client, "Anis Malik");
+
     const res = await fetch(`${BASE_URL}/api/election`);
-    const body = (await res.json()) as { candidates: { id: string }[] };
-    expect(body.candidates.length).toBe(2);
+    const body = (await res.json()) as { candidates: { name: string }[] };
+    expect(body.candidates.map((c) => c.name)).toContain("Anis Malik");
   });
 });
 
 describe("admin cleanup of voter entries", () => {
   let admin: TestClient;
-  let candidateIds: string[];
 
   beforeEach(async () => {
     await resetState();
     admin = await adminClient();
-    candidateIds = await openElectionWithCandidates(admin);
+    await openElection(admin);
   });
 
   it("requires admin authentication", async () => {
@@ -200,6 +216,7 @@ describe("admin cleanup of voter entries", () => {
   it("deletes a voter who has not voted, allowing re-registration", async () => {
     const client = await register("Andi");
     const list = (await admin.get("/api/voters")).data as { voters: VoterInfo[] };
+    expect(list.voters[0]?.choice).toBeNull();
     const id = list.voters[0]!.id;
 
     expect((await admin.delete(`/api/voters/${id}`)).status).toBe(200);
@@ -208,12 +225,12 @@ describe("admin cleanup of voter entries", () => {
     expect(me.data).toEqual({ authenticated: false });
     // Re-registering the same name works and can vote again.
     const again = await register("Andi");
-    expect((await again.post("/api/votes", { candidateId: candidateIds[0] })).status).toBe(201);
+    expect((await vote(again, "Anis Malik")).status).toBe(201);
   });
 
   it("deletes a voter who already voted and removes their vote from the total", async () => {
     const client = await register("Andi");
-    expect((await client.post("/api/votes", { candidateId: candidateIds[0] })).status).toBe(201);
+    expect((await vote(client, "Anis Malik")).status).toBe(201);
     const list = (await admin.get("/api/voters")).data as { voters: VoterInfo[] };
     const id = list.voters[0]!.id;
 
@@ -229,7 +246,7 @@ describe("admin cleanup of voter entries", () => {
 
     // The freed name can vote again in the still-OPEN election.
     const again = await register("Andi");
-    expect((await again.post("/api/votes", { candidateId: candidateIds[1] })).status).toBe(201);
+    expect((await vote(again, "Budi Santoso")).status).toBe(201);
   });
 
   it("returns 404 for an unknown voter id", async () => {

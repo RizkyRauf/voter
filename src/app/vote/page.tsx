@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { Modal } from "@/components/Modal";
 import { api } from "@/lib/client-api";
-import type { CandidateDto, PublicElectionDto, VoterMeDto } from "@/lib/dto";
+import type { PublicElectionDto, VoterMeDto } from "@/lib/dto";
 
 type Phase = "code" | "ballot" | "done" | "blocked" | "checking";
 
@@ -21,11 +21,11 @@ export default function VotePage() {
   const [election, setElection] = useState<PublicElectionDto | null>(null);
   const [blocked, setBlocked] = useState<BlockedInfo | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [selected, setSelected] = useState<string | null>(null);
+  const [choice, setChoice] = useState("");
+  const [showSuggest, setShowSuggest] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [doneReason, setDoneReason] = useState<"voted" | "already" | null>(null);
-  const [query, setQuery] = useState("");
 
   const loadElection = useCallback(async (hasVoted: boolean) => {
     const result = await api<PublicElectionDto>("/api/election");
@@ -54,8 +54,8 @@ export default function VotePage() {
       setDoneReason("already");
       setPhase("done");
     } else {
-      setSelected(null);
-      setQuery("");
+      setChoice("");
+      setShowSuggest(false);
       setPhase("ballot");
     }
   }, []);
@@ -86,11 +86,12 @@ export default function VotePage() {
   }
 
   async function submitVote() {
-    if (!selected) return;
+    const candidateName = choice.trim();
+    if (!candidateName) return;
     setConfirmOpen(false);
     setSubmitting(true);
     setError(null);
-    const result = await api("/api/votes", { json: { candidateId: selected } });
+    const result = await api("/api/votes", { json: { candidateName } });
     setSubmitting(false);
     if (!result.ok) {
       if (result.status === 401) {
@@ -110,12 +111,18 @@ export default function VotePage() {
     setPhase("done");
   }
 
-  const chosen = election?.candidates.find((c) => c.id === selected);
-  const candidates = election?.candidates ?? [];
-  const normalizedQuery = query.trim().toLowerCase();
-  const visibleCandidates = normalizedQuery
-    ? candidates.filter((c) => c.name.toLowerCase().includes(normalizedQuery))
-    : candidates;
+  const trimmedChoice = choice.trim();
+  const suggestions = (() => {
+    const q = trimmedChoice.toLowerCase();
+    if (!q) return [];
+    const names = new Set<string>();
+    for (const c of election?.candidates ?? []) {
+      const n = c.name.toLowerCase();
+      if (n.includes(q) && n !== q) names.add(c.name);
+      if (names.size >= 6) break;
+    }
+    return [...names];
+  })();
 
   return (
     <div className="relative flex flex-1 flex-col overflow-hidden">
@@ -229,48 +236,58 @@ export default function VotePage() {
 
           {phase === "ballot" && election ? (
             <>
-              <p className="mt-6 text-slate-600">Pilih satu peserta, lalu kirim suara Anda.</p>
-              {candidates.length > 6 ? (
-                <div className="relative mt-5">
-                  <svg
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    aria-hidden="true"
-                    className="pointer-events-none absolute left-3.5 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400"
-                  >
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-4.35-4.35M17 11a6 6 0 11-12 0 6 6 0 0112 0z" />
-                  </svg>
-                  <input
-                    type="search"
-                    value={query}
-                    onChange={(event) => setQuery(event.target.value)}
-                    placeholder="Ketik nama peserta untuk mencari…"
-                    aria-label="Cari peserta"
-                    className="min-h-11 w-full rounded-xl border border-slate-300 py-2.5 pl-11 pr-4 text-slate-700 placeholder:text-slate-400 focus:border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-200"
-                  />
-                </div>
-              ) : null}
-              <fieldset className="mt-5">
-                <legend className="sr-only">Daftar peserta</legend>
-                {visibleCandidates.length > 0 ? (
-                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                    {visibleCandidates.map((candidate) => (
-                      <CandidateCard
-                        key={candidate.id}
-                        candidate={candidate}
-                        checked={selected === candidate.id}
-                        onChange={() => setSelected(candidate.id)}
-                      />
+              <p className="mt-6 text-slate-600">
+                Ketik nama peserta yang Anda pilih. Jika nama sudah pernah
+                diketik pemilih lain, saran akan muncul — pilih untuk
+                memastikan ejaannya sama.
+              </p>
+              <div className="relative mt-5">
+                <label htmlFor="choice" className="block text-sm font-medium text-slate-700">
+                  Nama peserta
+                </label>
+                <input
+                  id="choice"
+                  required
+                  autoComplete="off"
+                  value={choice}
+                  onChange={(event) => {
+                    setChoice(event.target.value);
+                    setShowSuggest(true);
+                  }}
+                  onFocus={() => setShowSuggest(true)}
+                  onBlur={() => {
+                    // tunda agar klik saran sempat terpicu sebelum tertutup
+                    setTimeout(() => setShowSuggest(false), 120);
+                  }}
+                  placeholder="Contoh: Anis Malik"
+                  className="mt-1 min-h-12 w-full rounded-xl border border-slate-300 px-4 py-3 text-lg focus:border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-200"
+                />
+                {showSuggest && suggestions.length > 0 ? (
+                  <ul className="absolute z-10 mt-1 w-full overflow-hidden rounded-xl border border-slate-200 bg-white shadow-lg">
+                    {suggestions.map((name) => (
+                      <li key={name}>
+                        <button
+                          type="button"
+                          onMouseDown={(event) => {
+                            event.preventDefault();
+                            setChoice(name);
+                            setShowSuggest(false);
+                          }}
+                          className="flex min-h-11 w-full items-center px-4 py-2.5 text-left text-slate-700 hover:bg-teal-50"
+                        >
+                          {name}
+                        </button>
+                      </li>
                     ))}
-                  </div>
-                ) : (
-                  <p className="rounded-xl border border-dashed border-slate-200 bg-slate-50/60 px-4 py-8 text-center text-sm text-slate-500">
-                    Tidak ada peserta yang cocok dengan “{query.trim()}”.
+                  </ul>
+                ) : null}
+                {trimmedChoice && suggestions.length === 0 ? (
+                  <p className="mt-2 text-sm text-slate-500">
+                    Nama baru — akan tercatat sebagai peserta begitu suara
+                    dikirim.
                   </p>
-                )}
-              </fieldset>
+                ) : null}
+              </div>
               {error ? (
                 <p role="alert" className="mt-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">
                   {error}
@@ -278,7 +295,7 @@ export default function VotePage() {
               ) : null}
               <button
                 onClick={() => setConfirmOpen(true)}
-                disabled={!selected || submitting}
+                disabled={!trimmedChoice || submitting}
                 className="mt-6 min-h-12 w-full rounded-xl bg-gradient-to-r from-teal-600 to-emerald-500 px-5 py-3 font-semibold text-white shadow-md shadow-teal-200 transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50 disabled:shadow-none sm:w-auto sm:px-10"
               >
                 Kirim Suara
@@ -328,7 +345,7 @@ export default function VotePage() {
         onClose={() => setConfirmOpen(false)}
       >
         <p>
-          Anda memilih <strong>{chosen?.name}</strong>. Setelah dikirim, suara tidak
+          Anda memilih <strong>{trimmedChoice}</strong>. Setelah dikirim, suara tidak
           dapat diubah lagi.
         </p>
         <div className="mt-5 flex flex-wrap gap-3">
@@ -351,63 +368,3 @@ export default function VotePage() {
   );
 }
 
-function CandidateCard({
-  candidate,
-  checked,
-  onChange,
-}: {
-  candidate: CandidateDto;
-  checked: boolean;
-  onChange: () => void;
-}) {
-  return (
-    <label
-      className={`flex min-h-11 cursor-pointer items-center gap-3 rounded-xl border p-4 transition duration-150 ${
-        checked
-          ? "border-teal-600 bg-teal-50 ring-1 ring-teal-600"
-          : "border-slate-200 bg-white hover:border-teal-300 hover:bg-teal-50/40"
-      }`}
-    >
-      <input
-        type="radio"
-        name="candidate"
-        className="sr-only"
-        checked={checked}
-        onChange={onChange}
-      />
-      {candidate.photoUrl ? (
-        <img
-          src={candidate.photoUrl}
-          alt=""
-          className="h-12 w-12 shrink-0 rounded-full object-cover"
-        />
-      ) : (
-        <span
-          className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-full text-lg font-bold ${
-            checked
-              ? "bg-gradient-to-br from-teal-500 to-emerald-500 text-white"
-              : "bg-slate-100 text-slate-500"
-          }`}
-        >
-          {candidate.name.charAt(0).toUpperCase()}
-        </span>
-      )}
-      <span className="min-w-0">
-        <span className="block font-semibold text-slate-900">{candidate.name}</span>
-        {candidate.description ? (
-          <span className="block truncate text-sm text-slate-600">
-            {candidate.description}
-          </span>
-        ) : null}
-      </span>
-      <span
-        aria-hidden="true"
-        className={`ml-auto flex h-6 w-6 shrink-0 items-center justify-center rounded-full border-2 transition ${
-          checked ? "border-teal-600 bg-teal-600" : "border-slate-300"
-        }`}
-      >
-        {checked ? <span className="h-2 w-2 rounded-full bg-white" /> : null}
-      </span>
-    </label>
-  );
-}

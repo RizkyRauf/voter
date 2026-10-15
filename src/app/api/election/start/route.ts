@@ -13,12 +13,7 @@ export async function POST(req: NextRequest) {
   const outcome = await startElection();
 
   if (!outcome.ok) {
-    return outcome.reason === "too-few-candidates"
-      ? NextResponse.json(
-          { error: "Minimal 2 peserta untuk memulai voting" },
-          { status: 400 },
-        )
-      : NextResponse.json({ error: "Voting sudah pernah dimulai" }, { status: 409 });
+    return NextResponse.json({ error: "Voting sudah pernah dimulai" }, { status: 409 });
   }
 
   const e = outcome.election;

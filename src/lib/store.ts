@@ -31,8 +31,7 @@ interface ElectionRow {
 interface CandidateRow {
   id: string;
   name: string;
-  description: string | null;
-  photo_url: string | null;
+  name_key: string;
   created_at: string;
 }
 
@@ -107,8 +106,7 @@ function mapCandidate(row: CandidateRow): Candidate {
   return {
     id: row.id,
     name: row.name,
-    description: row.description,
-    photoUrl: row.photo_url,
+    nameKey: row.name_key,
     createdAt: row.created_at,
   };
 }
@@ -242,21 +240,16 @@ export async function patchElection(patch: {
 
 export type StartOutcome =
   | { ok: true; election: Election }
-  | { ok: false; reason: "not-draft" | "too-few-candidates" };
+  | { ok: false; reason: "not-draft" };
 
 /**
  * DRAFT → OPEN via compare-and-swap on status so concurrent starts
- * cannot both win.
+ * cannot both win. Tanpa syarat jumlah kandidat — peserta tercipta
+ * saat pemilih mengetik nama (alur bebas-teks, Amd.4).
  */
 export async function startElection(): Promise<StartOutcome> {
-  const [election, candRes] = await Promise.all([
-    getElection(),
-    supabase().from("candidates").select("id", { count: "exact", head: true }),
-  ]);
-  if (candRes.error) throw new Error(`Supabase: ${candRes.error.message}`);
-
+  const election = await getElection();
   if (election.status !== "DRAFT") return { ok: false, reason: "not-draft" };
-  if ((candRes.count ?? 0) < 2) return { ok: false, reason: "too-few-candidates" };
 
   const res = await supabase()
     .from("election")
@@ -297,101 +290,6 @@ export async function listCandidates(): Promise<Candidate[]> {
   return (unwrap(res) as CandidateRow[]).map(mapCandidate);
 }
 
-export type CreateCandidateOutcome =
-  | { ok: true; candidate: Candidate }
-  | { ok: false; reason: "not-draft" | "duplicate" };
-
-export async function createCandidate(input: {
-  name: string;
-  nameKey: string;
-  description: string | null;
-  photoUrl: string | null;
-}): Promise<CreateCandidateOutcome> {
-  const election = await getElection();
-  if (election.status !== "DRAFT") return { ok: false, reason: "not-draft" };
-
-  const existing = await listCandidates();
-  if (existing.some((c) => candidateKey(c.name) === input.nameKey)) {
-    return { ok: false, reason: "duplicate" };
-  }
-
-  const res = await supabase()
-    .from("candidates")
-    .insert({
-      name: input.name,
-      description: input.description,
-      photo_url: input.photoUrl,
-    })
-    .select()
-    .single();
-  return { ok: true, candidate: mapCandidate(unwrap(res) as CandidateRow) };
-}
-
-export type UpdateCandidateOutcome =
-  | { ok: true; candidate: Candidate }
-  | { ok: false; reason: "not-found" | "not-draft" | "duplicate" };
-
-export async function updateCandidate(
-  id: string,
-  patch: {
-    name?: string;
-    nameKey?: string;
-    description?: string | null;
-    photoUrl?: string | null;
-  },
-  ): Promise<UpdateCandidateOutcome> {
-  if (!isUuid(id)) return { ok: false, reason: "not-found" };
-  const [election, candidates] = await Promise.all([getElection(), listCandidates()]);
-  const target = candidates.find((c) => c.id === id);
-  if (!target) return { ok: false, reason: "not-found" };
-  if (election.status !== "DRAFT") return { ok: false, reason: "not-draft" };
-  if (patch.name !== undefined && patch.nameKey !== undefined) {
-    const clash = candidates.some(
-      (c) => c.id !== id && candidateKey(c.name) === patch.nameKey,
-    );
-    if (clash) return { ok: false, reason: "duplicate" };
-  }
-
-  const row: Record<string, unknown> = {};
-  if (patch.name !== undefined) row.name = patch.name;
-  if (patch.description !== undefined) row.description = patch.description;
-  if (patch.photoUrl !== undefined) row.photo_url = patch.photoUrl;
-
-  const res = await supabase()
-    .from("candidates")
-    .update(row)
-    .eq("id", id)
-    .select()
-    .maybeSingle();
-  if (res.error) throw new Error(`Supabase: ${res.error.message}`);
-  if (!res.data) return { ok: false, reason: "not-found" };
-  return { ok: true, candidate: mapCandidate(res.data as CandidateRow) };
-}
-
-export type DeleteCandidateOutcome =
-  | { ok: true }
-  | { ok: false; reason: "not-found" | "not-draft" };
-
-export async function deleteCandidate(id: string): Promise<DeleteCandidateOutcome> {
-  if (!isUuid(id)) return { ok: false, reason: "not-found" };
-  const election = await getElection();
-  if (election.status !== "DRAFT") return { ok: false, reason: "not-draft" };
-
-  const res = await supabase()
-    .from("candidates")
-    .delete()
-    .eq("id", id)
-    .select()
-    .maybeSingle();
-  if (res.error) throw new Error(`Supabase: ${res.error.message}`);
-  if (!res.data) return { ok: false, reason: "not-found" };
-  return { ok: true };
-}
-
-function candidateKey(name: string): string {
-  return name.trim().toLowerCase().replace(/\s+/g, " ");
-}
-
 // ---------- voters ----------
 
 /** Register (or fetch) a voter by normalized name. Atomic via RPC. */
@@ -417,6 +315,31 @@ export async function listVoters(): Promise<Voter[]> {
     .select("*")
     .order("created_at", { ascending: true });
   return (unwrap(res) as VoterRow[]).map(mapVoter);
+}
+
+export interface VoterWithChoice extends Voter {
+  /** Nama peserta yang dipilih pemilih (dari suara tercatat); null bila belum. */
+  choice: string | null;
+}
+
+/**
+ * Daftar pemilih lengkap dengan pilihan masing-masing — hanya untuk
+ * tampilan admin (Amd.4: anonimitas dilepas untuk admin, publik tetap
+ * melihat agregat saja).
+ */
+export async function listVotersWithChoice(): Promise<VoterWithChoice[]> {
+  const [voters, votes, candidates] = await Promise.all([
+    listVoters(),
+    listVotes(),
+    listCandidates(),
+  ]);
+  const nameByCandidate = new Map(candidates.map((c) => [c.id, c.name]));
+  const choiceByVoter = new Map<string, string>();
+  for (const vote of votes) {
+    const name = nameByCandidate.get(vote.candidateId);
+    if (name) choiceByVoter.set(vote.voterId, name);
+  }
+  return voters.map((v) => ({ ...v, choice: choiceByVoter.get(v.id) ?? null }));
 }
 
 export type DeleteVoterOutcome =
@@ -453,7 +376,8 @@ export type CastVoteFailureReason =
   | "closed"
   | "voter-gone"
   | "already-voted"
-  | "candidate-not-found";
+  | "candidate-not-found"
+  | "invalid-name";
 
 export type CastVoteOutcome =
   | { ok: true }
@@ -477,6 +401,28 @@ export async function castVote(
     await supabase().rpc("cast_vote", {
       p_voter_id: voterId,
       p_candidate_id: candidateId,
+    }),
+  ) as { ok: boolean; reason?: CastVoteFailureReason };
+  if (out.ok) return { ok: true };
+  return { ok: false, reason: out.reason ?? "candidate-not-found" };
+}
+
+/**
+ * Cast a vote by free-text candidate name (Amd.4). Kandidat tercipta
+ * otomatis di DB bila nama belum ada — idempotent per name_key,
+ * tahan race (unique_violation → baca ulang).
+ */
+export async function castVoteByName(
+  voterId: string,
+  name: string,
+  nameKey: string,
+): Promise<CastVoteOutcome> {
+  if (!isUuid(voterId)) return { ok: false, reason: "voter-gone" };
+  const out = unwrap(
+    await supabase().rpc("cast_vote", {
+      p_voter_id: voterId,
+      p_candidate_name: name,
+      p_candidate_name_key: nameKey,
     }),
   ) as { ok: boolean; reason?: CastVoteFailureReason };
   if (out.ok) return { ok: true };

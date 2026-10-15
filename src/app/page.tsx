@@ -3,9 +3,9 @@ import Link from "next/link";
 import { CurrentYear } from "@/components/CurrentYear";
 
 const steps = [
-  { title: "Siapkan peserta", description: "Admin menambah daftar peserta untuk dipilih." },
-  { title: "Mulai vote", description: "Pemilih mendaftar dengan nama, lalu memilih satu peserta." },
-  { title: "Stop vote", description: "Admin menghentikan voting dengan konfirmasi." },
+  { title: "Mulai vote", description: "Admin menentukan waktu mulai — voting langsung terbuka." },
+  { title: "Pemilih mengetik", description: "Pemilih daftar dengan nama, lalu ketik nama peserta pilihannya." },
+  { title: "Stop vote", description: "Admin menghentikan voting sesuai waktu yang ditentukan." },
   { title: "Lihat hasil", description: "Suara, persentase, dan pemenang ditampilkan." },
 ];
 

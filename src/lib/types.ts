@@ -20,8 +20,8 @@ export interface Election {
 export interface Candidate {
   id: string;
   name: string;
-  description: string | null;
-  photoUrl: string | null;
+  /** normalized (lowercase, collapsed whitespace) — key deduplikasi */
+  nameKey: string;
   createdAt: string;
 }
 
