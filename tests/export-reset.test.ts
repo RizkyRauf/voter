@@ -1,0 +1,135 @@
+import { beforeEach, describe, expect, it } from "vitest";
+import { BASE_URL, TestClient, adminClient, resetState, uniqueName } from "./helpers";
+
+interface GeneratedVoter {
+  code: string;
+}
+
+async function setupClosedWithVotes(admin: TestClient): Promise<void> {
+  const ids: string[] = [];
+  for (const label of ["A", "B"]) {
+    const res = await admin.post("/api/candidates", { name: uniqueName(`Kandidat ${label}`) });
+    ids.push((res.data as { id: string }).id);
+  }
+  await admin.post("/api/election/start");
+  const voters = (await admin.post("/api/voters", { count: 2 })).data as {
+    voters: GeneratedVoter[];
+  };
+  for (const [i, voter] of voters.voters.entries()) {
+    const client = new TestClient();
+    await client.post("/api/voter/session", { code: voter.code });
+    await client.post("/api/votes", { candidateId: ids[i] });
+  }
+  await admin.post("/api/election/stop", { confirm: true });
+}
+
+describe("CSV export (A-10)", () => {
+  let admin: TestClient;
+
+  beforeEach(async () => {
+    await resetState();
+    admin = await adminClient();
+  });
+
+  it("requires admin authentication", async () => {
+    const anon = new TestClient();
+    const res = await anon.get("/api/export");
+    expect(res.status).toBe(401);
+  });
+
+  it("exports aggregate results as CSV attachment", async () => {
+    await setupClosedWithVotes(admin);
+    const res = await fetch(`${BASE_URL}/api/export`, {
+      headers: { cookie: admin.cookieHeader() },
+    });
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type")).toContain("text/csv");
+    expect(res.headers.get("content-disposition")).toContain("attachment");
+
+    const text = await res.text();
+    const lines = text.trim().split("\n");
+    expect(lines[0]).toBe("Nama Peserta,Suara,Persentase");
+    expect(lines.length).toBe(4); // header + 2 candidates + total
+    expect(text).toContain("Total Suara,2");
+    // aggregate only: no voter codes in the export
+    expect(text).not.toMatch(/Kode/i);
+  });
+
+  it("escapes commas and quotes in candidate names", async () => {
+    const weird = await admin.post("/api/candidates", { name: 'Kandidat, "Hebat"' });
+    expect(weird.status).toBe(201);
+    await admin.post("/api/candidates", { name: uniqueName("Biasa") });
+    await admin.post("/api/election/start");
+    await admin.post("/api/election/stop", { confirm: true });
+
+    const res = await fetch(`${BASE_URL}/api/export`, {
+      headers: { cookie: admin.cookieHeader() },
+    });
+    const text = await res.text();
+    expect(text).toContain('"Kandidat, ""Hebat"""');
+  });
+});
+
+describe("reset voting (A-11)", () => {
+  let admin: TestClient;
+
+  beforeEach(async () => {
+    await resetState();
+    admin = await adminClient();
+  });
+
+  it("requires admin authentication", async () => {
+    const anon = new TestClient();
+    const res = await anon.post("/api/reset");
+    expect(res.status).toBe(401);
+  });
+
+  it("only allows reset after the election is CLOSED", async () => {
+    expect((await admin.post("/api/reset")).status).toBe(409);
+    for (const label of ["A", "B"]) {
+      await admin.post("/api/candidates", { name: uniqueName(label) });
+    }
+    await admin.post("/api/election/start");
+    expect((await admin.post("/api/reset")).status).toBe(409);
+  });
+
+  it("clears votes and reopens a fresh DRAFT session keeping candidates and codes", async () => {
+    await setupClosedWithVotes(admin);
+
+    const res = await admin.post("/api/reset");
+    expect(res.status).toBe(200);
+
+    const election = await fetch(`${BASE_URL}/api/election`);
+    const body = (await election.json()) as {
+      status: string;
+      startedAt: string | null;
+      closedAt: string | null;
+      candidates: unknown[];
+    };
+    expect(body.status).toBe("DRAFT");
+    expect(body.startedAt).toBeNull();
+    expect(body.closedAt).toBeNull();
+    expect(body.candidates).toEqual([]); // hidden while DRAFT
+
+    // candidates are kept: we can start again right away
+    const start = await admin.post("/api/election/start");
+    expect(start.status).toBe(200);
+
+    const view = await fetch(`${BASE_URL}/api/election`);
+    const after = (await view.json()) as { candidates: unknown[] };
+    expect(after.candidates.length).toBe(2);
+
+    // old voter codes still work and can vote again in the new session
+    const voters = (await admin.get("/api/voters")).data as {
+      votedCount: number;
+      voters: { code: string }[];
+    };
+    expect(voters.votedCount).toBe(0);
+
+    const client = new TestClient();
+    expect((await client.post("/api/voter/session", { code: voters.voters[0].code })).status).toBe(200);
+    const candidates = after.candidates as { id: string }[];
+    const vote = await client.post("/api/votes", { candidateId: candidates[0].id });
+    expect(vote.status).toBe(201);
+  });
+});
