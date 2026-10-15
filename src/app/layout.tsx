@@ -15,6 +15,7 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Aplikasi Voting Online",
   description: "Voting online sederhana: satu pemilih, satu suara.",
+  icons: { icon: "/logo_nestecth.png" },
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

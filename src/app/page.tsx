@@ -27,9 +27,6 @@ export default function Home() {
             priority
             className="h-auto w-40 sm:w-48"
           />
-          <span className="rounded-full border border-teal-200 bg-white/70 px-3 py-1 text-xs font-semibold uppercase tracking-widest text-teal-700">
-            Voting Online
-          </span>
         </header>
 
         <section className="mt-8">
@@ -40,8 +37,9 @@ export default function Home() {
             </span>
           </h1>
           <p className="mx-auto mt-4 max-w-xl text-base text-slate-600 sm:text-lg">
-            Satu pemilih, satu suara — ditegakkan di server, bukan hanya di tampilan.
-            Nyaman dipakai di HP, tablet, maupun desktop.
+            Cara mudah menggelar pemungutan suara online: satu nama, satu suara,
+            hasil langsung terhitung. Nyaman dipakai di HP, tablet, maupun
+            desktop.
           </p>
         </section>
 
