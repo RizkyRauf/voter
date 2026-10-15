@@ -2,9 +2,17 @@ import { randomUUID } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { assertSameOrigin, isErrorResponse, jsonError, readJsonBody } from "@/lib/api";
 import { requireAdmin } from "@/lib/auth";
-import { updateDb } from "@/lib/store";
+import { readDb, updateDb } from "@/lib/store";
 import type { Candidate } from "@/lib/types";
 import { nameKey, validateName, validateOptionalText } from "@/lib/validation";
+
+export async function GET(req: NextRequest) {
+  const admin = await requireAdmin(req);
+  if (isErrorResponse(admin)) return admin;
+
+  const db = await readDb();
+  return NextResponse.json(db.candidates.map((c) => ({ ...c })));
+}
 
 type CreateOutcome =
   | { ok: true; candidate: Candidate }

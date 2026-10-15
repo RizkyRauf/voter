@@ -25,6 +25,17 @@ describe("candidates API", () => {
     expect(res.status).toBe(401);
   });
 
+  it("lists candidates for admin, including while DRAFT", async () => {
+    const anon = new TestClient();
+    expect((await anon.get("/api/candidates")).status).toBe(401);
+
+    await admin.post("/api/candidates", { name: uniqueName() });
+    await admin.post("/api/candidates", { name: uniqueName() });
+    const list = await admin.get("/api/candidates");
+    expect(list.status).toBe(200);
+    expect((list.data as CandidateResponse[]).length).toBe(2);
+  });
+
   it("creates a candidate with a required name", async () => {
     const name = uniqueName();
     const res = await admin.post("/api/candidates", { name });
