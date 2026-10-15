@@ -16,9 +16,3 @@ export function StatusBadge({ status }: { status: ElectionStatus }) {
     </span>
   );
 }
-
-export function statusMessage(status: ElectionStatus): string {
-  if (status === "DRAFT") return "Voting belum dimulai";
-  if (status === "OPEN") return "Voting sedang berlangsung";
-  return "Voting telah ditutup";
-}

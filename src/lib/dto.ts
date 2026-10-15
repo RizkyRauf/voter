@@ -51,11 +51,6 @@ export interface VotersDto {
   voters: VoterDto[];
 }
 
-export interface SessionDto {
-  authenticated: boolean;
-  username?: string;
-}
-
 export interface VoterMeDto {
   authenticated: boolean;
   hasVoted?: boolean;

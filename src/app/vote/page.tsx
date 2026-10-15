@@ -110,7 +110,7 @@ export default function VotePage() {
   const chosen = election?.candidates.find((c) => c.id === selected);
 
   return (
-    <main className="mx-auto flex w-full max-w-lg flex-1 flex-col px-4 py-8">
+    <main className="mx-auto flex w-full max-w-3xl flex-1 flex-col px-4 py-8">
       <Link href="/" className="text-sm font-medium text-indigo-700 hover:underline">
         ← Beranda
       </Link>
@@ -197,7 +197,7 @@ export default function VotePage() {
             <p className="mt-2 text-slate-600">Pilih satu peserta, lalu kirim suara Anda.</p>
             <fieldset className="mt-5">
               <legend className="sr-only">Daftar peserta</legend>
-              <div className="flex flex-col gap-3">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
                 {election.candidates.map((candidate) => (
                   <CandidateCard
                     key={candidate.id}
@@ -233,7 +233,7 @@ export default function VotePage() {
                 ? "Satu pemilih hanya boleh memberikan satu suara, sehingga pilihan tidak dapat diubah."
                 : null}
             </p>
-            {election?.showResultsToVoters ? (
+            {election?.status === "CLOSED" && election.showResultsToVoters ? (
               <Link
                 href="/hasil"
                 className="mt-5 inline-flex min-h-11 items-center rounded-xl border border-slate-300 bg-white px-4 py-2 font-medium text-slate-700 hover:bg-slate-50"
