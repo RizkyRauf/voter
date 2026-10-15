@@ -12,6 +12,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Folder build sementara test (dibuat tests/global-setup.ts):
+    ".next-test-*/**",
   ]),
 ]);
 

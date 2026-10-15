@@ -80,15 +80,19 @@ export function clearSession(res: NextResponse, name: string): void {
 }
 
 export async function getAdminFromRequest(req: NextRequest): Promise<Admin | null> {
+  const token = req.cookies.get(ADMIN_SESSION_COOKIE)?.value;
+  if (!token) return null;
   const secret = await getSessionSecret();
-  const payload = verifyToken(req.cookies.get(ADMIN_SESSION_COOKIE)?.value, secret);
+  const payload = verifyToken(token, secret);
   if (!payload || payload.typ !== "admin") return null;
   return findAdminById(payload.sub);
 }
 
 export async function getVoterFromRequest(req: NextRequest): Promise<Voter | null> {
+  const token = req.cookies.get(VOTER_SESSION_COOKIE)?.value;
+  if (!token) return null;
   const secret = await getSessionSecret();
-  const payload = verifyToken(req.cookies.get(VOTER_SESSION_COOKIE)?.value, secret);
+  const payload = verifyToken(token, secret);
   if (!payload || payload.typ !== "voter") return null;
   return getVoterById(payload.sub);
 }

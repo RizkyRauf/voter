@@ -1,10 +1,11 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse, connection } from "next/server";
 import { assertSameOrigin, isErrorResponse, jsonError, readJsonBody } from "@/lib/api";
 import { requireAdmin } from "@/lib/auth";
 import { createCandidate, listCandidates } from "@/lib/store";
 import { nameKey, validateName, validateOptionalText } from "@/lib/validation";
 
 export async function GET(req: NextRequest) {
+  await connection();
   const admin = await requireAdmin(req);
   if (isErrorResponse(admin)) return admin;
 

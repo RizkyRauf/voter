@@ -1,10 +1,11 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse, connection } from "next/server";
 import { jsonError } from "@/lib/api";
 import { getAdminFromRequest } from "@/lib/auth";
 import { computeResults } from "@/lib/results";
 import { getElection, listCandidates, listVotes } from "@/lib/store";
 
 export async function GET(req: NextRequest) {
+  await connection();
   const [election, admin] = await Promise.all([getElection(), getAdminFromRequest(req)]);
 
   // Public access: only after CLOSED and only when the admin allows it.

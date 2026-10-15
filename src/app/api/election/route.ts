@@ -1,4 +1,4 @@
-import { NextRequest } from "next/server";
+import { NextRequest, connection } from "next/server";
 import { assertSameOrigin, isErrorResponse, jsonError, readJsonBody } from "@/lib/api";
 import { requireAdmin } from "@/lib/auth";
 import { getElection, listCandidates, patchElection } from "@/lib/store";
@@ -19,6 +19,7 @@ export interface PublicElection {
 }
 
 export async function GET() {
+  await connection();
   const election = await getElection();
   const candidates = election.status === "DRAFT" ? [] : await listCandidates();
   const body: PublicElection = {

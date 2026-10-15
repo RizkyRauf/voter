@@ -1,4 +1,4 @@
-import { NextRequest } from "next/server";
+import { NextRequest, connection } from "next/server";
 import { isErrorResponse } from "@/lib/api";
 import { requireAdmin } from "@/lib/auth";
 import { computeResults } from "@/lib/results";
@@ -10,6 +10,7 @@ function csvCell(value: string | number): string {
 }
 
 export async function GET(req: NextRequest) {
+  await connection();
   const admin = await requireAdmin(req);
   if (isErrorResponse(admin)) return admin;
 

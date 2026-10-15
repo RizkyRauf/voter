@@ -1,9 +1,10 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse, connection } from "next/server";
 import { isErrorResponse } from "@/lib/api";
 import { requireAdmin } from "@/lib/auth";
 import { listVoters } from "@/lib/store";
 
 export async function GET(req: NextRequest) {
+  await connection();
   const admin = await requireAdmin(req);
   if (isErrorResponse(admin)) return admin;
 
