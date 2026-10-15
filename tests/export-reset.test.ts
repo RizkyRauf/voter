@@ -1,19 +1,21 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { BASE_URL, TestClient, adminClient, resetState, uniqueName } from "./helpers";
 
-async function setupClosedWithVotes(admin: TestClient): Promise<void> {
+async function setupClosedWithVotes(admin: TestClient): Promise<string[]> {
   const ids: string[] = [];
   for (const label of ["A", "B"]) {
     const res = await admin.post("/api/candidates", { name: uniqueName(`Kandidat ${label}`) });
     ids.push((res.data as { id: string }).id);
   }
   await admin.post("/api/election/start");
-  for (const [i, name] of [uniqueName("Pemilih 1"), uniqueName("Pemilih 2")].entries()) {
+  const names = [uniqueName("Pemilih 1"), uniqueName("Pemilih 2")];
+  for (const [i, name] of names.entries()) {
     const client = new TestClient();
     await client.post("/api/voter/session", { name });
     await client.post("/api/votes", { candidateId: ids[i] });
   }
   await admin.post("/api/election/stop", { confirm: true });
+  return names;
 }
 
 describe("CSV export (A-10)", () => {
@@ -86,8 +88,8 @@ describe("reset voting (A-11)", () => {
     expect((await admin.post("/api/reset")).status).toBe(409);
   });
 
-  it("clears votes and reopens a fresh DRAFT session keeping candidates and voter names", async () => {
-    await setupClosedWithVotes(admin);
+  it("clears votes and voter names, reopens a fresh DRAFT session keeping candidates", async () => {
+    const names = await setupClosedWithVotes(admin);
 
     const res = await admin.post("/api/reset");
     expect(res.status).toBe(200);
@@ -112,16 +114,18 @@ describe("reset voting (A-11)", () => {
     const after = (await view.json()) as { candidates: unknown[] };
     expect(after.candidates.length).toBe(2);
 
-    // registered names are kept and can vote again in the new session
+    // voter names are wiped together with their votes
     const voters = (await admin.get("/api/voters")).data as {
-      votedCount: number;
+      total: number;
       voters: { name: string }[];
     };
-    expect(voters.votedCount).toBe(0);
+    expect(voters.total).toBe(0);
+    expect(voters.voters).toEqual([]);
 
+    // the same name can register fresh in the new session and vote again
     const client = new TestClient();
     expect(
-      (await client.post("/api/voter/session", { name: voters.voters[0].name })).status,
+      (await client.post("/api/voter/session", { name: names[0] })).status,
     ).toBe(200);
     const candidates = after.candidates as { id: string }[];
     const vote = await client.post("/api/votes", { candidateId: candidates[0].id });

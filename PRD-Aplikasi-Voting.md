@@ -266,8 +266,9 @@ diimplementasikan:
 - Admin dapat **menghapus nama kapan saja** (untuk membersihkan nama aneh /
   ganda). Penghapusan bersifat kaskade: suara yang pernah diberikan ikut
   dihapus dari total hasil, dan nama tersebut dapat mendaftar-ulang.
-- Reset sesi baru tetap menyimpan daftar nama (semua status kembali "belum
-  memilih") dan daftar peserta.
+- Reset sesi baru menghapus **semua suara dan daftar nama pemilih**
+  (bersih total); daftar peserta tetap dipertahankan, dan nama yang sama
+  boleh didaftarkan-ulang di sesi baru.
 
 ### Amd. 3 — Keputusan lain yang sudah final (menjawab OQ)
 

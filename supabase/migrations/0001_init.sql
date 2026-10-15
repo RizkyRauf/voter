@@ -124,10 +124,10 @@ begin
 end;
 $$;
 
--- Reset sesi baru: hanya dari CLOSED; hapus semua suara, reset status
--- pemilih. Transaksional. Catatan: Supabase memblokir DELETE/UPDATE tanpa
--- WHERE clause (baik di restapi maupun di dalam function) — semua
--- statement di bawah sengaja punya predicate meski id memang NOT NULL.
+-- Reset sesi baru: hanya dari CLOSED; hapus semua suara DAN daftar nama
+-- pemilih (bersih total), daftar peserta tetap. Transaksional. Catatan:
+-- Supabase memblokir DELETE/UPDATE tanpa WHERE clause — semua statement
+-- di bawah sengaja punya predicate meski id memang NOT NULL.
 create or replace function reset_election()
 returns jsonb
 language plpgsql
@@ -141,7 +141,7 @@ begin
     set status = 'DRAFT', started_at = null, closed_at = null
     where id = 'main';
   delete from votes where id is not null;
-  update voters set has_voted = false, voted_at = null where id is not null;
+  delete from voters where id is not null;
 
   return jsonb_build_object('ok', true);
 end;

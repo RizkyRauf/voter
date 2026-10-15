@@ -629,9 +629,9 @@ export function AdminDashboard() {
         onClose={() => setConfirm(null)}
       >
         <p>
-          Semua suara akan dihapus dan voting kembali ke status draft. Daftar
-          nama pemilih dan peserta tetap tersedia, dan setiap nama dapat memilih
-          lagi pada sesi baru.
+          Semua suara dan daftar nama pemilih akan dihapus, dan voting kembali
+          ke status draft. Daftar peserta tetap tersedia; sesi baru dimulai
+          dengan mendaftarkan nama pemilih (nama lama boleh dipakai ulang).
         </p>
         <div className="mt-5 flex flex-wrap gap-3">
           <button
