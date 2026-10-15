@@ -2,24 +2,24 @@ import { NextRequest, NextResponse } from "next/server";
 import { jsonError } from "@/lib/api";
 import { getAdminFromRequest } from "@/lib/auth";
 import { computeResults } from "@/lib/results";
-import { readDb } from "@/lib/store";
+import { getElection, listCandidates, listVotes } from "@/lib/store";
 
 export async function GET(req: NextRequest) {
-  const db = await readDb();
-  const admin = await getAdminFromRequest(req);
+  const [election, admin] = await Promise.all([getElection(), getAdminFromRequest(req)]);
 
   // Public access: only after CLOSED and only when the admin allows it.
   if (!admin) {
-    if (db.election.status === "DRAFT") {
+    if (election.status === "DRAFT") {
       return jsonError(403, "Voting belum dimulai");
     }
-    if (db.election.status === "OPEN") {
+    if (election.status === "OPEN") {
       return jsonError(403, "Hasil akan diumumkan setelah voting ditutup");
     }
-    if (!db.election.showResultsToVoters) {
+    if (!election.showResultsToVoters) {
       return jsonError(403, "Hasil tidak tersedia untuk umum");
     }
   }
 
-  return NextResponse.json(computeResults(db));
+  const [candidates, votes] = await Promise.all([listCandidates(), listVotes()]);
+  return NextResponse.json(computeResults({ election, candidates, votes }));
 }

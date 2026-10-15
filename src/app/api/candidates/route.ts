@@ -1,22 +1,24 @@
-import { randomUUID } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { assertSameOrigin, isErrorResponse, jsonError, readJsonBody } from "@/lib/api";
 import { requireAdmin } from "@/lib/auth";
-import { readDb, updateDb } from "@/lib/store";
-import type { Candidate } from "@/lib/types";
+import { createCandidate, listCandidates } from "@/lib/store";
 import { nameKey, validateName, validateOptionalText } from "@/lib/validation";
 
 export async function GET(req: NextRequest) {
   const admin = await requireAdmin(req);
   if (isErrorResponse(admin)) return admin;
 
-  const db = await readDb();
-  return NextResponse.json(db.candidates.map((c) => ({ ...c })));
+  const candidates = await listCandidates();
+  return NextResponse.json(
+    candidates.map((c) => ({
+      id: c.id,
+      name: c.name,
+      description: c.description,
+      photoUrl: c.photoUrl,
+      createdAt: c.createdAt,
+    })),
+  );
 }
-
-type CreateOutcome =
-  | { ok: true; candidate: Candidate }
-  | { ok: false; reason: "not-draft" | "duplicate" };
 
 export async function POST(req: NextRequest) {
   const originError = assertSameOrigin(req);
@@ -35,25 +37,15 @@ export async function POST(req: NextRequest) {
   const photoUrl = validateOptionalText(body.photoUrl, "Foto");
   if (photoUrl instanceof NextResponse) return photoUrl;
 
-  const outcome = await updateDb((db): CreateOutcome => {
-    if (db.election.status !== "DRAFT") return { ok: false, reason: "not-draft" };
-    const key = nameKey(name);
-    if (db.candidates.some((c) => nameKey(c.name) === key)) {
-      return { ok: false, reason: "duplicate" };
-    }
-    const candidate: Candidate = {
-      id: randomUUID(),
-      name,
-      description,
-      photoUrl,
-      createdAt: new Date().toISOString(),
-    };
-    db.candidates.push(candidate);
-    return { ok: true, candidate };
+  const outcome = await createCandidate({
+    name,
+    nameKey: nameKey(name),
+    description,
+    photoUrl,
   });
 
-  if (!outcome?.ok) {
-    return outcome?.reason === "duplicate"
+  if (!outcome.ok) {
+    return outcome.reason === "duplicate"
       ? jsonError(400, "Nama peserta duplikat")
       : jsonError(409, "Peserta hanya dapat dikelola saat voting belum dimulai");
   }

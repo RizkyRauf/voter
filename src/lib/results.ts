@@ -1,10 +1,10 @@
-import type { CandidateResult, Db, Results } from "./types";
+import type { CandidateResult, Results, ResultsInput } from "./types";
 
 /**
  * Aggregate vote counts. Public consumers only ever see these aggregates —
  * never which voter picked which candidate (PRD 7.4).
  */
-export function computeResults(db: Db): Results {
+export function computeResults(db: ResultsInput): Results {
   const totalVotes = db.votes.length;
   const counts = new Map<string, number>();
   for (const candidate of db.candidates) counts.set(candidate.id, 0);

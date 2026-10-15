@@ -1,23 +1,26 @@
 import { spawn, type ChildProcess } from "node:child_process";
-import { mkdtempSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { rmSync } from "node:fs";
 import path from "node:path";
 import { BASE_URL } from "./helpers";
 
 let child: ChildProcess | null = null;
-let dataDir: string | null = null;
 
 export async function setup() {
-  dataDir = mkdtempSync(path.join(tmpdir(), "voting-test-"));
-
   const nextBin = path.join(process.cwd(), "node_modules", "next", "dist", "bin", "next");
   const port = new URL(BASE_URL).port;
 
+  // Storage: Supabase (SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY dari
+  // .env.local, dimuat otomatis oleh next dev). Test-reset mengosongkan
+  // tabel sebelum tiap file test — karenanya test wajib berurutan
+  // (fileParallelism: false di vitest.config.ts).
   child = spawn(process.execPath, [nextBin, "dev", "-p", port], {
     cwd: process.cwd(),
     env: {
       ...process.env,
-      DATA_DIR: dataDir,
+      // Vitest menurunkan NODE_ENV=test ke child; Next.js sengaja tidak
+      // memuat .env.local pada mode test — paksa development agar variabel
+      // Supabase di .env.local tetap terbaca oleh server uji.
+      NODE_ENV: "development",
       NEXT_DIST_DIR: `.next-test-${port}`,
       ENABLE_TEST_ROUTES: "1",
       SESSION_SECRET: "test-session-secret-do-not-use-in-prod",
@@ -68,9 +71,6 @@ export async function teardown() {
     } catch {
       // already gone
     }
-  }
-  if (dataDir) {
-    rmSync(dataDir, { recursive: true, force: true });
   }
   rmSync(path.join(process.cwd(), `.next-test-${new URL(BASE_URL).port}`), {
     recursive: true,

@@ -42,12 +42,10 @@ export interface Vote {
   createdAt: string;
 }
 
-export interface Db {
-  secret: string;
-  admins: Admin[];
+/** Snapshot of the tables that results computation reads. */
+export interface ResultsInput {
   election: Election;
   candidates: Candidate[];
-  voters: Voter[];
   votes: Vote[];
 }
 

@@ -1,0 +1,16 @@
+# Next.js runtime (OpenNext adapter) — dipasang otomatis Netlify,
+# jangan pin versinya agar selalu dapat perbaikan terbaru.
+# Next 16 didukung zero-config sejak Okt 2025.
+
+[build]
+  command = "npm run build"
+  publish = ".next"
+
+[build.environment]
+  NODE_VERSION = "22"
+
+# Variabel rahasia diatur di Netlify Dashboard → Site configuration →
+# Environment variables (TIDAK boleh ditulis di file ini):
+#   SUPABASE_URL            = https://ralgzlbuvgxvhzjcvokz.supabase.co
+#   SUPABASE_SERVICE_ROLE_KEY = <service_role key Supabase>
+#   (opsional) SESSION_SECRET, ADMIN_USERNAME, ADMIN_PASSWORD, ELECTION_TITLE

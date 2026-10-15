@@ -1,12 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { assertSameOrigin, isErrorResponse, readJsonBody } from "@/lib/api";
 import { requireAdmin } from "@/lib/auth";
-import { updateDb } from "@/lib/store";
-import type { Election } from "@/lib/types";
-
-type StopOutcome =
-  | { ok: true; election: Election }
-  | { ok: false; reason: "not-open" };
+import { stopElection } from "@/lib/store";
 
 export async function POST(req: NextRequest) {
   const originError = assertSameOrigin(req);
@@ -25,15 +20,20 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const outcome = await updateDb((db): StopOutcome => {
-    if (db.election.status !== "OPEN") return { ok: false, reason: "not-open" };
-    db.election.status = "CLOSED";
-    db.election.closedAt = new Date().toISOString();
-    return { ok: true, election: { ...db.election } };
-  });
+  const outcome = await stopElection();
 
-  if (!outcome?.ok) {
+  if (!outcome.ok) {
     return NextResponse.json({ error: "Voting sedang tidak berjalan" }, { status: 409 });
   }
-  return NextResponse.json(outcome.election);
+
+  const e = outcome.election;
+  return NextResponse.json({
+    id: e.id,
+    title: e.title,
+    status: e.status,
+    showResultsToVoters: e.showResultsToVoters,
+    startedAt: e.startedAt,
+    closedAt: e.closedAt,
+    createdAt: e.createdAt,
+  });
 }

@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { assertSameOrigin, isErrorResponse, jsonError, readJsonBody } from "@/lib/api";
 import { requireAdmin } from "@/lib/auth";
-import { readDb, updateDb } from "@/lib/store";
+import { getElection, listCandidates, patchElection } from "@/lib/store";
 import type { ElectionStatus } from "@/lib/types";
 
 export interface PublicElection {
@@ -19,22 +19,20 @@ export interface PublicElection {
 }
 
 export async function GET() {
-  const db = await readDb();
+  const election = await getElection();
+  const candidates = election.status === "DRAFT" ? [] : await listCandidates();
   const body: PublicElection = {
-    title: db.election.title,
-    status: db.election.status,
-    showResultsToVoters: db.election.showResultsToVoters,
-    startedAt: db.election.startedAt,
-    closedAt: db.election.closedAt,
-    candidates:
-      db.election.status === "DRAFT"
-        ? []
-        : db.candidates.map((c) => ({
-            id: c.id,
-            name: c.name,
-            description: c.description,
-            photoUrl: c.photoUrl,
-          })),
+    title: election.title,
+    status: election.status,
+    showResultsToVoters: election.showResultsToVoters,
+    startedAt: election.startedAt,
+    closedAt: election.closedAt,
+    candidates: candidates.map((c) => ({
+      id: c.id,
+      name: c.name,
+      description: c.description,
+      photoUrl: c.photoUrl,
+    })),
   };
   return Response.json(body);
 }
@@ -67,18 +65,16 @@ export async function PATCH(req: NextRequest) {
     return jsonError(400, "Pengaturan hasil tidak valid");
   }
 
-  const updated = await updateDb((db) => {
-    if (title !== undefined) db.election.title = (title as string).trim();
-    if (showResultsToVoters !== undefined) {
-      db.election.showResultsToVoters = showResultsToVoters as boolean;
-    }
-    return {
-      title: db.election.title,
-      status: db.election.status,
-      showResultsToVoters: db.election.showResultsToVoters,
-      startedAt: db.election.startedAt,
-      closedAt: db.election.closedAt,
-    };
+  const updated = await patchElection({
+    title: title !== undefined ? (title as string).trim() : undefined,
+    showResultsToVoters:
+      showResultsToVoters !== undefined ? (showResultsToVoters as boolean) : undefined,
   });
-  return Response.json(updated);
+  return Response.json({
+    title: updated.title,
+    status: updated.status,
+    showResultsToVoters: updated.showResultsToVoters,
+    startedAt: updated.startedAt,
+    closedAt: updated.closedAt,
+  });
 }

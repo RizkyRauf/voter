@@ -1,7 +1,7 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { jsonError } from "./api";
-import { readDb } from "./store";
+import { findAdminById, getSessionSecret, getVoterById } from "./store";
 import type { Admin, Voter } from "./types";
 
 export const ADMIN_SESSION_COOKIE = "admin_session";
@@ -80,17 +80,17 @@ export function clearSession(res: NextResponse, name: string): void {
 }
 
 export async function getAdminFromRequest(req: NextRequest): Promise<Admin | null> {
-  const db = await readDb();
-  const payload = verifyToken(req.cookies.get(ADMIN_SESSION_COOKIE)?.value, db.secret);
+  const secret = await getSessionSecret();
+  const payload = verifyToken(req.cookies.get(ADMIN_SESSION_COOKIE)?.value, secret);
   if (!payload || payload.typ !== "admin") return null;
-  return db.admins.find((a) => a.id === payload.sub) ?? null;
+  return findAdminById(payload.sub);
 }
 
 export async function getVoterFromRequest(req: NextRequest): Promise<Voter | null> {
-  const db = await readDb();
-  const payload = verifyToken(req.cookies.get(VOTER_SESSION_COOKIE)?.value, db.secret);
+  const secret = await getSessionSecret();
+  const payload = verifyToken(req.cookies.get(VOTER_SESSION_COOKIE)?.value, secret);
   if (!payload || payload.typ !== "voter") return null;
-  return db.voters.find((v) => v.id === payload.sub) ?? null;
+  return getVoterById(payload.sub);
 }
 
 export async function requireAdmin(req: NextRequest): Promise<Admin | NextResponse> {

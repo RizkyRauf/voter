@@ -1,20 +1,7 @@
-import { randomUUID } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { assertSameOrigin, isErrorResponse, jsonError, readJsonBody } from "@/lib/api";
 import { getVoterFromRequest } from "@/lib/auth";
-import { updateDb } from "@/lib/store";
-
-type VoteOutcome =
-  | { ok: true }
-  | {
-      ok: false;
-      reason:
-        | "not-started"
-        | "closed"
-        | "voter-gone"
-        | "already-voted"
-        | "candidate-not-found";
-    };
+import { castVote, type CastVoteOutcome } from "@/lib/store";
 
 export async function POST(req: NextRequest) {
   const originError = assertSameOrigin(req);
@@ -33,32 +20,10 @@ export async function POST(req: NextRequest) {
     return jsonError(400, "Pilihan peserta wajib diisi");
   }
 
-  const outcome = await updateDb((db): VoteOutcome => {
-    if (db.election.status === "DRAFT") return { ok: false, reason: "not-started" };
-    if (db.election.status === "CLOSED") return { ok: false, reason: "closed" };
+  const outcome: CastVoteOutcome = await castVote(voter.id, candidateId);
 
-    const current = db.voters.find((v) => v.id === voter.id);
-    if (!current) return { ok: false, reason: "voter-gone" };
-    // Unique constraint: one vote record per voter, enforced server-side.
-    if (current.hasVoted || db.votes.some((vote) => vote.voterId === voter.id)) {
-      return { ok: false, reason: "already-voted" };
-    }
-    const candidate = db.candidates.find((c) => c.id === candidateId);
-    if (!candidate) return { ok: false, reason: "candidate-not-found" };
-
-    current.hasVoted = true;
-    current.votedAt = new Date().toISOString();
-    db.votes.push({
-      id: randomUUID(),
-      voterId: voter.id,
-      candidateId: candidate.id,
-      createdAt: current.votedAt,
-    });
-    return { ok: true };
-  });
-
-  if (!outcome?.ok) {
-    switch (outcome?.reason) {
+  if (!outcome.ok) {
+    switch (outcome.reason) {
       case "not-started":
         return jsonError(403, "Voting belum dimulai");
       case "closed":

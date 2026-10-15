@@ -11,7 +11,7 @@ import {
   tooManyFailures,
 } from "@/lib/api";
 import { setAdminSession } from "@/lib/auth";
-import { readDb } from "@/lib/store";
+import { ensureAdmin, findAdminByUsername, getSessionSecret } from "@/lib/store";
 
 const LOGIN_LIMIT = 5;
 const LOGIN_WINDOW_MS = 15 * 60 * 1000;
@@ -38,8 +38,8 @@ export async function POST(req: NextRequest) {
     return jsonError(429, "Terlalu banyak percobaan login. Coba lagi nanti.");
   }
 
-  const db = await readDb();
-  const admin = db.admins.find((a) => a.username === username.trim());
+  await ensureAdmin();
+  const admin = await findAdminByUsername(username.trim());
   const valid = admin ? await bcrypt.compare(password, admin.passwordHash) : false;
 
   if (!admin || !valid) {
@@ -49,6 +49,6 @@ export async function POST(req: NextRequest) {
 
   clearFailures(key);
   const res = NextResponse.json({ ok: true, username: admin.username });
-  setAdminSession(res, admin.id, db.secret);
+  setAdminSession(res, admin.id, await getSessionSecret());
   return res;
 }
