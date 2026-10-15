@@ -4,6 +4,9 @@ import { getAdminFromRequest } from "@/lib/auth";
 import { computeResults } from "@/lib/results";
 import { getElection, listCandidates, listVotes } from "@/lib/store";
 
+/** Jumlah peringkat yang boleh dilihat publik setelah CLOSED. */
+const PUBLIC_TOP_N = 5;
+
 export async function GET(req: NextRequest) {
   await connection();
   const [election, admin] = await Promise.all([getElection(), getAdminFromRequest(req)]);
@@ -22,5 +25,16 @@ export async function GET(req: NextRequest) {
   }
 
   const [candidates, votes] = await Promise.all([listCandidates(), listVotes()]);
-  return NextResponse.json(computeResults({ election, candidates, votes }));
+  const full = computeResults({ election, candidates, votes });
+
+  // Admin melihat lengkap; publik hanya 5 peringkat teratas (Amd. 3).
+  if (admin) {
+    return NextResponse.json({ ...full, truncated: false });
+  }
+  const publicRows = full.results.slice(0, PUBLIC_TOP_N);
+  return NextResponse.json({
+    ...full,
+    results: publicRows,
+    truncated: full.results.length > publicRows.length,
+  });
 }

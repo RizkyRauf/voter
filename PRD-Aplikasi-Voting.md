@@ -273,7 +273,9 @@ diimplementasikan:
 ### Amd. 3 — Keputusan lain yang sudah final (menjawab OQ)
 
 - **OQ 2:** voter boleh melihat hasil **setelah `CLOSED`**, dapat dimatikan
-  admin (`showResultsToVoters`, default aktif).
+  admin (`showResultsToVoters`, default aktif). Tampilan publik dibatasi
+  **5 peringkat teratas** (beserta pemenang & total suara); admin tetap
+  melihat daftar lengkap.
 - **OQ 3:** hasil tersembunyi selama `OPEN` (hanya admin yang melihat live
   count); final setelah `CLOSED`.
 - **OQ 4:** suara **anonim penuh** terhadap admin (lihat Amd. 1).

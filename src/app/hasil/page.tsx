@@ -155,6 +155,12 @@ export default function HasilPage() {
                 <p className="mt-6 text-sm text-slate-500">
                   Total {results.totalVotes} suara sah.
                 </p>
+                {results.truncated ? (
+                  <p className="mt-2 text-sm text-slate-500">
+                    Menampilkan 5 peringkat teratas. Hubungi admin untuk
+                    informasi hasil lengkap.
+                  </p>
+                ) : null}
               </>
             )
           ) : null}

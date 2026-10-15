@@ -36,6 +36,8 @@ export interface ResultsDto {
   totalVotes: number;
   results: CandidateResultDto[];
   winner: { candidateId: string; name: string } | null;
+  /** True bila daftar dipotong ke 5 peringkat teratas (tampilan publik). */
+  truncated: boolean;
 }
 
 export interface VoterDto {

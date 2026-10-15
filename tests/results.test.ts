@@ -6,6 +6,7 @@ interface ResultsResponse {
   totalVotes: number;
   results: { candidateId: string; name: string; votes: number; percentage: number }[];
   winner: { candidateId: string; name: string } | null;
+  truncated: boolean;
 }
 
 async function setupOpen(admin: TestClient): Promise<string[]> {
@@ -67,6 +68,7 @@ describe("results API", () => {
     const body = (await res.json()) as ResultsResponse;
     expect(body.status).toBe("CLOSED");
     expect(body.totalVotes).toBe(3);
+    expect(body.truncated).toBe(false);
     const first = body.results[0];
     const second = body.results[1];
     expect(first?.votes).toBe(2);
@@ -85,6 +87,29 @@ describe("results API", () => {
     const res = await fetch(`${BASE_URL}/api/results`);
     const body = (await res.json()) as ResultsResponse;
     expect(body.winner).toBeNull();
+  });
+
+  it("limits the public view to the top 5 after CLOSED; admin sees everything", async () => {
+    const ids: string[] = [];
+    for (const label of ["A", "B", "C", "D", "E", "F", "G"]) {
+      const res = await admin.post("/api/candidates", { name: uniqueName(`Kandidat ${label}`) });
+      ids.push((res.data as { id: string }).id);
+    }
+    expect((await admin.post("/api/election/start")).status).toBe(200);
+    await voteAs(uniqueName("Pemilih"), ids[0]);
+    expect((await admin.post("/api/election/stop", { confirm: true })).status).toBe(200);
+
+    const publicRes = await fetch(`${BASE_URL}/api/results`);
+    expect(publicRes.status).toBe(200);
+    const publicBody = (await publicRes.json()) as ResultsResponse;
+    expect(publicBody.truncated).toBe(true);
+    expect(publicBody.results).toHaveLength(5);
+    expect(publicBody.results[0]?.candidateId).toBe(ids[0]); // peringkat 1 tetap pemenang
+    expect(publicBody.winner?.candidateId).toBe(ids[0]);
+
+    const adminBody = (await admin.get("/api/results")).data as ResultsResponse;
+    expect(adminBody.truncated).toBe(false);
+    expect(adminBody.results).toHaveLength(7);
   });
 
   it("hides public results when the admin disables the toggle", async () => {

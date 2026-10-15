@@ -25,6 +25,7 @@ export default function VotePage() {
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [doneReason, setDoneReason] = useState<"voted" | "already" | null>(null);
+  const [query, setQuery] = useState("");
 
   const loadElection = useCallback(async (hasVoted: boolean) => {
     const result = await api<PublicElectionDto>("/api/election");
@@ -54,6 +55,7 @@ export default function VotePage() {
       setPhase("done");
     } else {
       setSelected(null);
+      setQuery("");
       setPhase("ballot");
     }
   }, []);
@@ -109,6 +111,11 @@ export default function VotePage() {
   }
 
   const chosen = election?.candidates.find((c) => c.id === selected);
+  const candidates = election?.candidates ?? [];
+  const normalizedQuery = query.trim().toLowerCase();
+  const visibleCandidates = normalizedQuery
+    ? candidates.filter((c) => c.name.toLowerCase().includes(normalizedQuery))
+    : candidates;
 
   return (
     <div className="relative flex flex-1 flex-col overflow-hidden">
@@ -223,18 +230,46 @@ export default function VotePage() {
           {phase === "ballot" && election ? (
             <>
               <p className="mt-6 text-slate-600">Pilih satu peserta, lalu kirim suara Anda.</p>
+              {candidates.length > 6 ? (
+                <div className="relative mt-5">
+                  <svg
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    aria-hidden="true"
+                    className="pointer-events-none absolute left-3.5 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400"
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-4.35-4.35M17 11a6 6 0 11-12 0 6 6 0 0112 0z" />
+                  </svg>
+                  <input
+                    type="search"
+                    value={query}
+                    onChange={(event) => setQuery(event.target.value)}
+                    placeholder="Ketik nama peserta untuk mencari…"
+                    aria-label="Cari peserta"
+                    className="min-h-11 w-full rounded-xl border border-slate-300 py-2.5 pl-11 pr-4 text-slate-700 placeholder:text-slate-400 focus:border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-200"
+                  />
+                </div>
+              ) : null}
               <fieldset className="mt-5">
                 <legend className="sr-only">Daftar peserta</legend>
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                  {election.candidates.map((candidate) => (
-                    <CandidateCard
-                      key={candidate.id}
-                      candidate={candidate}
-                      checked={selected === candidate.id}
-                      onChange={() => setSelected(candidate.id)}
-                    />
-                  ))}
-                </div>
+                {visibleCandidates.length > 0 ? (
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                    {visibleCandidates.map((candidate) => (
+                      <CandidateCard
+                        key={candidate.id}
+                        candidate={candidate}
+                        checked={selected === candidate.id}
+                        onChange={() => setSelected(candidate.id)}
+                      />
+                    ))}
+                  </div>
+                ) : (
+                  <p className="rounded-xl border border-dashed border-slate-200 bg-slate-50/60 px-4 py-8 text-center text-sm text-slate-500">
+                    Tidak ada peserta yang cocok dengan “{query.trim()}”.
+                  </p>
+                )}
               </fieldset>
               {error ? (
                 <p role="alert" className="mt-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">
