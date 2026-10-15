@@ -15,7 +15,10 @@ export async function POST(req: NextRequest) {
   const outcome = await updateDb((db): ResetOutcome => {
     if (db.election.status !== "CLOSED") return { ok: false, reason: "not-closed" };
     db.votes = [];
-    for (const voter of db.voters) voter.hasVoted = false;
+    for (const voter of db.voters) {
+      voter.hasVoted = false;
+      voter.votedAt = null;
+    }
     db.election.status = "DRAFT";
     db.election.startedAt = null;
     db.election.closedAt = null;

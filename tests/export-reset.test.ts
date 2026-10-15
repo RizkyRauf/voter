@@ -1,10 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { BASE_URL, TestClient, adminClient, resetState, uniqueName } from "./helpers";
 
-interface GeneratedVoter {
-  code: string;
-}
-
 async function setupClosedWithVotes(admin: TestClient): Promise<void> {
   const ids: string[] = [];
   for (const label of ["A", "B"]) {
@@ -12,12 +8,9 @@ async function setupClosedWithVotes(admin: TestClient): Promise<void> {
     ids.push((res.data as { id: string }).id);
   }
   await admin.post("/api/election/start");
-  const voters = (await admin.post("/api/voters", { count: 2 })).data as {
-    voters: GeneratedVoter[];
-  };
-  for (const [i, voter] of voters.voters.entries()) {
+  for (const [i, name] of [uniqueName("Pemilih 1"), uniqueName("Pemilih 2")].entries()) {
     const client = new TestClient();
-    await client.post("/api/voter/session", { code: voter.code });
+    await client.post("/api/voter/session", { name });
     await client.post("/api/votes", { candidateId: ids[i] });
   }
   await admin.post("/api/election/stop", { confirm: true });
@@ -93,7 +86,7 @@ describe("reset voting (A-11)", () => {
     expect((await admin.post("/api/reset")).status).toBe(409);
   });
 
-  it("clears votes and reopens a fresh DRAFT session keeping candidates and codes", async () => {
+  it("clears votes and reopens a fresh DRAFT session keeping candidates and voter names", async () => {
     await setupClosedWithVotes(admin);
 
     const res = await admin.post("/api/reset");
@@ -119,15 +112,17 @@ describe("reset voting (A-11)", () => {
     const after = (await view.json()) as { candidates: unknown[] };
     expect(after.candidates.length).toBe(2);
 
-    // old voter codes still work and can vote again in the new session
+    // registered names are kept and can vote again in the new session
     const voters = (await admin.get("/api/voters")).data as {
       votedCount: number;
-      voters: { code: string }[];
+      voters: { name: string }[];
     };
     expect(voters.votedCount).toBe(0);
 
     const client = new TestClient();
-    expect((await client.post("/api/voter/session", { code: voters.voters[0].code })).status).toBe(200);
+    expect(
+      (await client.post("/api/voter/session", { name: voters.voters[0].name })).status,
+    ).toBe(200);
     const candidates = after.candidates as { id: string }[];
     const vote = await client.post("/api/votes", { candidateId: candidates[0].id });
     expect(vote.status).toBe(201);

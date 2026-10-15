@@ -242,4 +242,41 @@ Ini adalah aturan inti dan harus ditegakkan di **server (backend)**, bukan hanya
 
 ---
 
-*Dokumen ini adalah draft dan akan diperbarui setelah Open Questions terjawab.*
+## 16. Amendmen (perubahan keputusan setelah v1)
+
+Keputusan berikut menggantikan bagian PRD yang bertentangan dan sudah
+diimplementasikan:
+
+### Amd. 1 — Identifikasi pemilih: nama, bukan kode (mengganti bagian 6 & OQ 1)
+
+- Sistem kode unik sekali pakai **dihapus**. Pemilih mendaftar dengan
+  **nama** saat membuka halaman voting; nama disimpan dan sesi diberikan lewat
+  cookie.
+- **Satu nama = satu suara.** Nama dinormalisasi (trim, spasi rapat, huruf
+  besar/kecil diabaikan), sehingga "Budi", " budi " dianggap orang yang sama
+  dan hanya boleh memilih sekali (dicegah di server, bukan hanya tampilan).
+- Nama yang mirip tapi tidak identik ("Budi" vs "Budi Santoso") diperbolehkan
+  sebagai entri terpisah; admin membersihkan lewat tabel pemilih.
+- Pilihan pemilih **tetap anonim**. Tabel admin hanya menampilkan
+  `nama · sudah/belum memilih · waktu`, tanpa kandidat yang dipilih.
+
+### Amd. 2 — Tabel pemilih & hapus entri (fitur baru)
+
+- Admin melihat tabel pemilih yang diperbarui otomatis saat voting berjalan.
+- Admin dapat **menghapus nama kapan saja** (untuk membersihkan nama aneh /
+  ganda). Penghapusan bersifat kaskade: suara yang pernah diberikan ikut
+  dihapus dari total hasil, dan nama tersebut dapat mendaftar-ulang.
+- Reset sesi baru tetap menyimpan daftar nama (semua status kembali "belum
+  memilih") dan daftar peserta.
+
+### Amd. 3 — Keputusan lain yang sudah final (menjawab OQ)
+
+- **OQ 2:** voter boleh melihat hasil **setelah `CLOSED`**, dapat dimatikan
+  admin (`showResultsToVoters`, default aktif).
+- **OQ 3:** hasil tersembunyi selama `OPEN` (hanya admin yang melihat live
+  count); final setelah `CLOSED`.
+- **OQ 4:** suara **anonim penuh** terhadap admin (lihat Amd. 1).
+- **OQ 5:** **satu event** saja di v1.
+- **OQ 6:** peserta boleh punya **foto & deskripsi** (opsional).
+- **OQ 7:** Stop Vote **final** (satu arah; `DRAFT → OPEN → CLOSED`). Untuk
+  sesi berikutnya admin memakai "Reset Sesi Baru".

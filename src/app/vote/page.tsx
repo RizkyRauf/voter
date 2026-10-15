@@ -17,7 +17,7 @@ interface BlockedInfo {
 
 export default function VotePage() {
   const [phase, setPhase] = useState<Phase>("checking");
-  const [code, setCode] = useState("");
+  const [name, setName] = useState("");
   const [election, setElection] = useState<PublicElectionDto | null>(null);
   const [blocked, setBlocked] = useState<BlockedInfo | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -68,12 +68,12 @@ export default function VotePage() {
     });
   }, [loadElection]);
 
-  async function enterCode(event: React.FormEvent) {
+  async function enterName(event: React.FormEvent) {
     event.preventDefault();
     setError(null);
     setSubmitting(true);
     const session = await api<{ hasVoted: boolean }>("/api/voter/session", {
-      json: { code },
+      json: { name },
     });
     setSubmitting(false);
     if (!session.ok) {
@@ -93,7 +93,7 @@ export default function VotePage() {
     if (!result.ok) {
       if (result.status === 401) {
         setPhase("code");
-        setError("Sesi pemilih tidak berlaku. Masukkan kode ulang.");
+        setError("Sesi Anda berakhir. Masukkan nama Anda kembali.");
         return;
       }
       if (result.status === 409) {
@@ -147,22 +147,22 @@ export default function VotePage() {
           {phase === "code" ? (
             <>
               <p className="mt-6 text-slate-600">
-                Masukkan kode pemilih yang Anda terima untuk melanjutkan.
+                Masukkan nama Anda untuk melanjutkan. Setiap nama hanya boleh
+                memilih satu kali.
               </p>
-              <form onSubmit={enterCode} className="mt-5 flex flex-col gap-4">
+              <form onSubmit={enterName} className="mt-5 flex flex-col gap-4">
                 <div>
-                  <label htmlFor="code" className="block text-sm font-medium text-slate-700">
-                    Kode pemilih
+                  <label htmlFor="voter-name" className="block text-sm font-medium text-slate-700">
+                    Nama Anda
                   </label>
                   <input
-                    id="code"
+                    id="voter-name"
                     required
-                    autoCapitalize="characters"
-                    autoComplete="off"
-                    value={code}
-                    onChange={(event) => setCode(event.target.value.toUpperCase())}
-                    placeholder="contoh: A2B3C4D5"
-                    className="mt-1 min-h-12 w-full rounded-xl border border-slate-300 px-4 py-3 text-center font-mono text-lg tracking-[0.3em] uppercase focus:border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-200"
+                    autoComplete="name"
+                    value={name}
+                    onChange={(event) => setName(event.target.value)}
+                    placeholder="Nama lengkap"
+                    className="mt-1 min-h-12 w-full rounded-xl border border-slate-300 px-4 py-3 text-lg focus:border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-200"
                   />
                 </div>
                 {error ? (
@@ -263,8 +263,8 @@ export default function VotePage() {
               </p>
               {doneReason === "already" ? (
                 <p className="mt-2 max-w-md text-sm text-slate-600">
-                  Satu pemilih hanya boleh memberikan satu suara, sehingga pilihan tidak
-                  dapat diubah.
+                  Setiap nama hanya boleh memberikan satu suara, sehingga pilihan
+                  tidak dapat diubah.
                 </p>
               ) : null}
               {election?.status === "CLOSED" && election.showResultsToVoters ? (

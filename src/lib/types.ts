@@ -27,9 +27,12 @@ export interface Candidate {
 
 export interface Voter {
   id: string;
-  code: string;
+  name: string;
+  /** normalized (lowercase, collapsed whitespace) — used for duplicate detection */
+  nameKey: string;
   hasVoted: boolean;
   createdAt: string;
+  votedAt: string | null;
 }
 
 export interface Vote {

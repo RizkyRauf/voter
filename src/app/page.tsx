@@ -3,8 +3,8 @@ import Link from "next/link";
 import { CurrentYear } from "@/components/CurrentYear";
 
 const steps = [
-  { title: "Siapkan peserta", description: "Admin menambah daftar peserta dan kode pemilih." },
-  { title: "Mulai vote", description: "Voting dibuka — pemilih memilih satu peserta." },
+  { title: "Siapkan peserta", description: "Admin menambah daftar peserta untuk dipilih." },
+  { title: "Mulai vote", description: "Pemilih mendaftar dengan nama, lalu memilih satu peserta." },
   { title: "Stop vote", description: "Admin menghentikan voting dengan konfirmasi." },
   { title: "Lihat hasil", description: "Suara, persentase, dan pemenang ditampilkan." },
 ];
@@ -56,7 +56,7 @@ export default function Home() {
               </svg>
             </span>
             <span className="font-bold text-slate-900 group-hover:text-teal-700">Masuk sebagai Pemilih</span>
-            <span className="text-sm text-slate-500">Punya kode? Langsung pilih.</span>
+            <span className="text-sm text-slate-500">Daftar dengan nama, lalu pilih.</span>
           </Link>
 
           <Link

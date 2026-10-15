@@ -40,8 +40,9 @@ export interface ResultsDto {
 
 export interface VoterDto {
   id: string;
-  code: string;
+  name: string;
   hasVoted: boolean;
+  votedAt: string | null;
   createdAt: string;
 }
 

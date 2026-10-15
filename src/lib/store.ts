@@ -2,7 +2,8 @@ import { randomBytes, randomUUID } from "node:crypto";
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import bcrypt from "bcryptjs";
-import type { Db } from "./types";
+import { nameKey } from "./validation";
+import type { Db, Voter } from "./types";
 
 const dataDir = process.env.DATA_DIR ?? path.join(process.cwd(), "data");
 const dbPath = path.join(dataDir, "db.json");
@@ -60,9 +61,25 @@ async function loadFromDisk(): Promise<Db | null> {
   }
 }
 
+/** Back-fill voters created by the old code-based schema (name from code). */
+function migrateVoters(db: Db): void {
+  db.voters = (db.voters as (Partial<Voter> & { code?: string })[]).map((v) => {
+    const name = typeof v.name === "string" && v.name.trim() !== "" ? v.name.trim() : (v.code ?? "Pemilih");
+    return {
+      id: v.id ?? randomUUID(),
+      name,
+      nameKey: nameKey(name),
+      hasVoted: v.hasVoted === true,
+      createdAt: v.createdAt ?? now(),
+      votedAt: v.votedAt ?? null,
+    } satisfies Voter;
+  });
+}
+
 async function ensureLoaded(): Promise<Db> {
   if (cache) return cache;
   const db = (await loadFromDisk()) ?? (await seed());
+  migrateVoters(db);
   cache = db;
   return db;
 }
@@ -99,6 +116,7 @@ export function updateDb<T>(
 ): Promise<T | null> {
   return runExclusive(async () => {
     cache = (await loadFromDisk()) ?? (await seed());
+    migrateVoters(cache);
     const db = cache;
     const result = await mutator(db);
     if (result === null) return null;

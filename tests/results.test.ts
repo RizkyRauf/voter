@@ -8,11 +8,6 @@ interface ResultsResponse {
   winner: { candidateId: string; name: string } | null;
 }
 
-interface GeneratedVoter {
-  id: string;
-  code: string;
-}
-
 async function setupOpen(admin: TestClient): Promise<string[]> {
   const ids: string[] = [];
   for (const label of ["A", "B"]) {
@@ -23,15 +18,10 @@ async function setupOpen(admin: TestClient): Promise<string[]> {
   return ids;
 }
 
-async function voteAs(code: string, candidateId: string): Promise<void> {
+async function voteAs(name: string, candidateId: string): Promise<void> {
   const voter = new TestClient();
-  expect((await voter.post("/api/voter/session", { code })).status).toBe(200);
+  expect((await voter.post("/api/voter/session", { name })).status).toBe(200);
   expect((await voter.post("/api/votes", { candidateId })).status).toBe(201);
-}
-
-async function generateVoters(admin: TestClient, count: number): Promise<GeneratedVoter[]> {
-  const res = await admin.post("/api/voters", { count });
-  return (res.data as { voters: GeneratedVoter[] }).voters;
 }
 
 describe("results API", () => {
@@ -52,8 +42,7 @@ describe("results API", () => {
 
   it("gives the admin live counts while OPEN (A-06)", async () => {
     const ids = await setupOpen(admin);
-    const [voter] = await generateVoters(admin, 1);
-    await voteAs(voter.code, ids[0]);
+    await voteAs(uniqueName("Pemilih"), ids[0]);
 
     const res = await admin.get("/api/results");
     expect(res.status).toBe(200);
@@ -67,10 +56,9 @@ describe("results API", () => {
 
   it("reveals final results to the public after CLOSED (A-08, V-09)", async () => {
     const ids = await setupOpen(admin);
-    const voters = await generateVoters(admin, 3);
-    await voteAs(voters[0].code, ids[0]);
-    await voteAs(voters[1].code, ids[0]);
-    await voteAs(voters[2].code, ids[1]);
+    await voteAs(uniqueName("Pemilih 1"), ids[0]);
+    await voteAs(uniqueName("Pemilih 2"), ids[0]);
+    await voteAs(uniqueName("Pemilih 3"), ids[1]);
 
     expect((await admin.post("/api/election/stop", { confirm: true })).status).toBe(200);
 
@@ -90,9 +78,8 @@ describe("results API", () => {
 
   it("returns no winner when the vote is tied", async () => {
     const ids = await setupOpen(admin);
-    const voters = await generateVoters(admin, 2);
-    await voteAs(voters[0].code, ids[0]);
-    await voteAs(voters[1].code, ids[1]);
+    await voteAs(uniqueName("Pemilih 1"), ids[0]);
+    await voteAs(uniqueName("Pemilih 2"), ids[1]);
     await admin.post("/api/election/stop", { confirm: true });
 
     const res = await fetch(`${BASE_URL}/api/results`);
@@ -102,8 +89,7 @@ describe("results API", () => {
 
   it("hides public results when the admin disables the toggle", async () => {
     const ids = await setupOpen(admin);
-    const [voter] = await generateVoters(admin, 1);
-    await voteAs(voter.code, ids[0]);
+    await voteAs(uniqueName("Pemilih"), ids[0]);
     await admin.post("/api/election/stop", { confirm: true });
 
     const patched = await admin.patch("/api/election", { showResultsToVoters: false });

@@ -42,9 +42,6 @@ export function AdminDashboard() {
   const [editDescription, setEditDescription] = useState("");
   const [editPhotoUrl, setEditPhotoUrl] = useState("");
 
-  const [generateCount, setGenerateCount] = useState("10");
-  const [generatedCodes, setGeneratedCodes] = useState<string[] | null>(null);
-
   const refresh = useCallback(async () => {
     const [electionRes, candidatesRes, resultsRes, votersRes] = await Promise.all([
       api<ElectionAdminDto>("/api/election"),
@@ -149,7 +146,7 @@ export function AdminDashboard() {
       if (result.ok) setInfo("Voting telah dihentikan. Hasil akhir ditampilkan.");
     } else if (state.kind === "reset") {
       result = await api("/api/reset", { method: "POST" });
-      if (result.ok) setInfo("Sesi voting baru dimulai. Kode pemilih tetap berlaku.");
+      if (result.ok) setInfo("Sesi baru dimulai. Daftar nama pemilih dan peserta tetap tersedia.");
     } else if (state.kind === "delete-candidate") {
       result = await api(`/api/candidates/${state.id}`, { method: "DELETE" });
     } else {
@@ -174,23 +171,6 @@ export function AdminDashboard() {
       return;
     }
     setInfo("Voting dimulai. Pemilih sekarang dapat memberikan suara.");
-    refresh();
-  }
-
-  async function generateVoters(event: React.FormEvent) {
-    event.preventDefault();
-    setBusy(true);
-    setError(null);
-    const count = Number(generateCount);
-    const result = await api<{ voters: { code: string }[] }>("/api/voters", {
-      json: { count },
-    });
-    setBusy(false);
-    if (!result.ok) {
-      setError(result.error);
-      return;
-    }
-    setGeneratedCodes(result.data.voters.map((v) => v.code));
     refresh();
   }
 
@@ -529,101 +509,51 @@ export function AdminDashboard() {
 
       <section className="mt-6 rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
         <h2 className="text-lg font-semibold">Pemilih</h2>
-
-        {election.status === "DRAFT" ? (
-          <form onSubmit={generateVoters} className="mt-4 flex flex-wrap items-end gap-3">
-            <div className="w-40">
-              <label htmlFor="voter-count" className="block text-sm font-medium text-slate-700">
-                Jumlah kode
-              </label>
-              <input
-                id="voter-count"
-                type="number"
-                min={1}
-                max={500}
-                required
-                value={generateCount}
-                onChange={(event) => setGenerateCount(event.target.value)}
-                className="mt-1 min-h-11 w-full rounded-lg border border-slate-300 px-3 py-2"
-              />
-            </div>
-            <button
-              type="submit"
-              disabled={busy}
-              className="min-h-11 rounded-xl bg-indigo-600 px-5 py-3 font-semibold text-white hover:bg-indigo-500 disabled:opacity-50"
-            >
-              Generate Kode
-            </button>
-          </form>
-        ) : (
-          <p className="mt-2 text-sm text-slate-500">
-            Pemilih hanya dapat dikelola sebelum voting dimulai.
-          </p>
-        )}
-
-        {generatedCodes ? (
-          <div className="mt-4 rounded-xl bg-indigo-50 p-4">
-            <div className="flex items-center justify-between gap-3">
-              <p className="text-sm font-semibold text-indigo-900">
-                {generatedCodes.length} kode baru dibuat — bagikan sekarang, kode tidak
-                ditampilkan lagi setelah halaman dimuat ulang.
-              </p>
-              <button
-                onClick={() => navigator.clipboard.writeText(generatedCodes.join("\n"))}
-                className="min-h-11 shrink-0 rounded-lg border border-indigo-300 bg-white px-3 py-2 text-sm font-medium text-indigo-800"
-              >
-                Salin semua
-              </button>
-            </div>
-            <ul className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4">
-              {generatedCodes.map((code) => (
-                <li
-                  key={code}
-                  className="rounded-lg bg-white px-3 py-2 text-center font-mono text-sm font-semibold tracking-wider text-slate-800"
-                >
-                  {code}
-                </li>
-              ))}
-            </ul>
-          </div>
-        ) : null}
+        <p className="mt-1 text-sm text-slate-500">
+          Pemilih mendaftarkan diri dengan nama saat membuka halaman voting.
+          Suara tetap bersifat anonim — di sini hanya terlihat siapa yang sudah
+          memilih. Hapus nama yang tidak wajar; suaranya ikut dihapus dari total.
+        </p>
 
         <ul className="mt-5 divide-y divide-slate-100 md:hidden">
           {voters?.voters.map((voter) => (
-            <li key={voter.id} className="flex items-center justify-between gap-3 py-3">
-              <div>
-                <p className="font-mono text-sm font-semibold tracking-wider">{voter.code}</p>
-                <p className="text-xs text-slate-500">
-                  {voter.hasVoted ? "Sudah memilih" : "Belum memilih"}
-                </p>
-              </div>
-              {election.status === "DRAFT" ? (
+            <li key={voter.id} className="py-3">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="font-semibold text-slate-900">{voter.name}</p>
+                  <p className="text-xs text-slate-500">
+                    {voter.hasVoted
+                      ? `Sudah memilih${voter.votedAt ? ` · ${new Date(voter.votedAt).toLocaleString("id-ID")}` : ""}`
+                      : "Belum memilih"}
+                  </p>
+                </div>
                 <button
-                  onClick={() => setConfirm({ kind: "delete-voter", id: voter.id })}
-                  className="min-h-11 rounded-lg border border-red-200 px-3 py-2 text-sm font-medium text-red-700"
+                  onClick={() => setConfirm({ kind: "delete-voter", id: voter.id, name: voter.name })}
+                  className="min-h-11 shrink-0 rounded-lg border border-red-200 px-3 py-2 text-sm font-medium text-red-700 hover:bg-red-50"
                 >
                   Hapus
                 </button>
-              ) : null}
+              </div>
             </li>
           ))}
           {!voters?.voters.length ? (
-            <li className="py-3 text-sm text-slate-500">Belum ada pemilih.</li>
+            <li className="py-3 text-sm text-slate-500">Belum ada pemilih terdaftar.</li>
           ) : null}
         </ul>
 
         <table className="mt-5 hidden w-full text-left text-sm md:table">
           <thead className="border-b border-slate-200 text-slate-500">
             <tr>
-              <th className="py-2 font-medium">Kode</th>
+              <th className="py-2 font-medium">Nama</th>
               <th className="py-2 font-medium">Status</th>
+              <th className="py-2 font-medium">Waktu memilih</th>
               <th className="py-2 font-medium"></th>
             </tr>
           </thead>
           <tbody>
             {voters?.voters.map((voter) => (
               <tr key={voter.id} className="border-b border-slate-100">
-                <td className="py-2 font-mono tracking-wider">{voter.code}</td>
+                <td className="py-2 font-medium text-slate-800">{voter.name}</td>
                 <td className="py-2">
                   {voter.hasVoted ? (
                     <span className="rounded-full bg-emerald-100 px-2 py-1 text-xs font-medium text-emerald-800">
@@ -635,18 +565,28 @@ export function AdminDashboard() {
                     </span>
                   )}
                 </td>
+                <td className="py-2 text-slate-600">
+                  {voter.votedAt
+                    ? new Date(voter.votedAt).toLocaleString("id-ID")
+                    : "—"}
+                </td>
                 <td className="py-2 text-right">
-                  {election.status === "DRAFT" ? (
-                    <button
-                      onClick={() => setConfirm({ kind: "delete-voter", id: voter.id })}
-                      className="min-h-11 rounded-lg border border-red-200 px-3 py-2 text-sm font-medium text-red-700 hover:bg-red-50"
-                    >
-                      Hapus
-                    </button>
-                  ) : null}
+                  <button
+                    onClick={() => setConfirm({ kind: "delete-voter", id: voter.id, name: voter.name })}
+                    className="min-h-11 rounded-lg border border-red-200 px-3 py-2 text-sm font-medium text-red-700 hover:bg-red-50"
+                  >
+                    Hapus
+                  </button>
                 </td>
               </tr>
             ))}
+            {!voters?.voters.length ? (
+              <tr>
+                <td colSpan={4} className="py-3 text-slate-500">
+                  Belum ada pemilih terdaftar.
+                </td>
+              </tr>
+            ) : null}
           </tbody>
         </table>
       </section>
@@ -689,8 +629,9 @@ export function AdminDashboard() {
         onClose={() => setConfirm(null)}
       >
         <p>
-          Semua suara akan dihapus dan voting kembali ke status draft. Kode pemilih
-          dan daftar peserta tetap berlaku.
+          Semua suara akan dihapus dan voting kembali ke status draft. Daftar
+          nama pemilih dan peserta tetap tersedia, dan setiap nama dapat memilih
+          lagi pada sesi baru.
         </p>
         <div className="mt-5 flex flex-wrap gap-3">
           <button
@@ -739,7 +680,10 @@ export function AdminDashboard() {
         title="Hapus pemilih?"
         onClose={() => setConfirm(null)}
       >
-        <p>Kode pemilih ini akan dibatalkan dan tidak dapat digunakan untuk memilih.</p>
+        <p>
+          Nama <strong>{confirm?.name}</strong> akan dihapus dari daftar pemilih.
+          Jika sudah memilih, suaranya juga ikut dihapus dari total hasil.
+        </p>
         <div className="mt-5 flex flex-wrap gap-3">
           <button
             onClick={() => confirm && runConfirm(confirm)}

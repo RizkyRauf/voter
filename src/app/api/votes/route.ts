@@ -22,7 +22,7 @@ export async function POST(req: NextRequest) {
 
   const voter = await getVoterFromRequest(req);
   if (!voter) {
-    return jsonError(401, "Masukkan kode pemilih terlebih dahulu");
+    return jsonError(401, "Masukkan nama Anda terlebih dahulu");
   }
 
   const body = await readJsonBody(req);
@@ -47,11 +47,12 @@ export async function POST(req: NextRequest) {
     if (!candidate) return { ok: false, reason: "candidate-not-found" };
 
     current.hasVoted = true;
+    current.votedAt = new Date().toISOString();
     db.votes.push({
       id: randomUUID(),
       voterId: voter.id,
       candidateId: candidate.id,
-      createdAt: new Date().toISOString(),
+      createdAt: current.votedAt,
     });
     return { ok: true };
   });
@@ -65,7 +66,7 @@ export async function POST(req: NextRequest) {
       case "already-voted":
         return jsonError(409, "Anda sudah memberikan suara dan tidak dapat mengubahnya");
       case "voter-gone":
-        return jsonError(401, "Kode pemilih tidak lagi berlaku");
+        return jsonError(401, "Anda tidak lagi terdaftar sebagai pemilih");
       case "candidate-not-found":
         return jsonError(404, "Peserta tidak ditemukan");
       default:

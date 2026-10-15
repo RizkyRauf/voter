@@ -32,3 +32,20 @@ export function validateOptionalText(
 export function nameKey(name: string): string {
   return name.trim().toLowerCase().replace(/\s+/g, " ");
 }
+
+/**
+ * Validate a voter name. Returns the display form (trimmed, collapsed
+ * whitespace) together with the normalized key, or an error response.
+ */
+export function validateVoterName(
+  value: unknown,
+): { name: string; nameKey: string } | NextResponse {
+  if (typeof value !== "string" || value.trim() === "") {
+    return jsonError(400, "Nama wajib diisi");
+  }
+  const name = value.trim().replace(/\s+/g, " ");
+  if (name.length > MAX_NAME_LENGTH) {
+    return jsonError(400, `Nama terlalu panjang (maks. ${MAX_NAME_LENGTH} karakter)`);
+  }
+  return { name, nameKey: nameKey(name) };
+}
